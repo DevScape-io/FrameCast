@@ -14,6 +14,7 @@ struct SettingsView: View {
             FrameLibraryView().tabItem { Label("Frames", systemImage: "iphone") }
             VirtualCameraSettings().tabItem { Label("Virtual Camera", systemImage: "video") }
             ShortcutSettings().tabItem { Label("Shortcuts", systemImage: "keyboard") }
+            SupportSettings().tabItem { Label("Support Us", systemImage: "heart") }
         }
         .frame(width: 640, height: 500)
     }
@@ -107,6 +108,18 @@ struct GeneralSettings: View {
                 Toggle("Copy screenshots to the clipboard", isOn: $settings.copyScreenshotsToClipboard)
             } header: {
                 Text("Screenshots")
+            }
+
+            // A quiet footer; the Support Us tab has the full story.
+            Section {
+                HStack {
+                    Text("FrameCast is free, made by DevScape.io.")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button(SupportUs.menuTitle) { SupportUs.open() }
+                        .buttonStyle(.link)
+                }
+                .font(.callout)
             }
         }
         .formStyle(.grouped)
@@ -373,6 +386,74 @@ struct ShortcutSettings: View {
                     .padding(.vertical, 2)
                     .background(.quaternary, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
+        }
+    }
+}
+
+// MARK: - Support Us
+
+struct SupportSettings: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Form {
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("FrameCast is free to use")
+                        .font(.title3.weight(.semibold))
+                    Text("FrameCast is made by DevScape.io. If it’s been useful, a tip helps cover hosting, code signing and development time. It’s entirely optional.")
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(SupportUs.menuTitle) { SupportUs.open() }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .padding(.top, 2)
+                }
+                .padding(.vertical, 4)
+            }
+
+            Section {
+                point("safari", "Opens in your browser",
+                      "The button opens the DevScape.io support page in your default browser. Payment is handled there by Stripe, not inside FrameCast.")
+                point("creditcard", "One-time or monthly",
+                      "The page offers one-time tips and monthly support. Amounts are chosen on the page.")
+                point("lock.open", "Nothing is locked",
+                      "Every feature works whether or not you tip. Tipping doesn’t unlock anything or change the app.")
+                point("eye.slash", "FrameCast doesn’t know",
+                      "The app never learns whether you tipped and never asks. The link only carries the app’s name and version, so the page can say which app you came from.")
+            } header: {
+                Text("How It Works")
+            }
+
+            Section {
+                LabeledContent("Version") {
+                    Text(SupportUs.version).foregroundStyle(.secondary).textSelection(.enabled)
+                }
+                LabeledContent("License") {
+                    Text("Apache 2.0 with Commons Clause").foregroundStyle(.secondary)
+                }
+                LabeledContent("About") {
+                    Button("About FrameCast…") { openWindow(id: AboutView.windowID) }
+                }
+            } header: {
+                Text("FrameCast")
+            } footer: {
+                Note("Free to use. It may not be resold in any form. Copyright © 2026 DevScape.io LLC.")
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private func point(_ symbol: String, _ title: String, _ detail: String) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(detail)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } icon: {
+            Image(systemName: symbol).foregroundStyle(.secondary)
         }
     }
 }
