@@ -111,6 +111,29 @@ iPhone/iPad ─USB─► CoreMediaIO (screen-capture devices on) ─► AVCaptur
 - The clean status bar is an approximation drawn over the real one. Check it before using a capture in public marketing.
 - The canvas size is fixed for each recording. If you rotate the device while recording, it is letterboxed inside the same canvas.
 
+## Releasing
+
+`scripts/release.sh` archives the app, signs it with Developer ID, notarizes it, builds a DMG and publishes it as a GitHub Release on this repo.
+
+```bash
+scripts/release.sh 1.2.0            # sign, notarize and publish release v1.2.0
+scripts/release.sh 1.2.0 --draft    # publish as a draft to review first
+scripts/release.sh 1.2.0 --local    # sign and notarize, but don't publish
+scripts/release.sh --dry-run        # unsigned test of the build and packaging steps
+```
+
+Leave the version off to use `MARKETING_VERSION` from `project.yml`. The build number is the commit count. Output goes to `build/release/` (not checked in), with a `.sha256` file beside the DMG.
+
+Before a real release:
+
+- Commit and push everything; the release tag points at the pushed commit.
+- Have a **Developer ID Application** certificate in your keychain.
+- Store notarization credentials once:
+  `xcrun notarytool store-credentials "FrameCast-notary" --apple-id <you> --team-id <TEAMID> --password <app-specific-password>`
+- Be signed in to the GitHub CLI (`gh auth login`).
+
+Signed packages are attached to GitHub Releases, not committed to the repository, so the repo stays small and each package is tied to a tag.
+
 ## License
 
 FrameCast is licensed under the [Apache License 2.0 with the Commons Clause](LICENSE).
