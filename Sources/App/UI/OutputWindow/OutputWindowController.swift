@@ -394,7 +394,7 @@ final class OutputWindowController: NSObject, NSWindowDelegate {
         guard let window, let panel else { return }
         let mouse = NSEvent.mouseLocation
         let zone = window.frame.union(panel.frame).insetBy(dx: -12, dy: -12)
-        let busy = chrome.isCustomizing || model.countdown != nil || model.banner != nil
+        let busy = chrome.isCustomizing || model.countdown != nil || model.banner != nil || model.showSupportNudge
         if zone.contains(mouse) || busy { lastHover = Date() }
         let show = Date().timeIntervalSince(lastHover) < 1.2
         guard show != controlsShown else { return }

@@ -36,10 +36,17 @@ struct OutputControls: View {
                     .onTapGesture { model.banner = nil }
                     .transition(.opacity)
             }
+            // The main window is hidden while the output is separate, so the one-time
+            // Support Us prompt shows here instead. This panel is never part of a shared window.
+            if model.showSupportNudge {
+                SupportNudge()
+                    .transition(.opacity)
+            }
         }
         .padding(8)
         .fixedSize()
         .animation(.easeInOut(duration: 0.2), value: model.banner)
+        .animation(.easeInOut(duration: 0.2), value: model.showSupportNudge)
     }
 
     /// A short message, as wide as its text needs up to a limit, with even padding all round.
