@@ -1,4 +1,5 @@
 import AppKit
+import Accelerate
 import CoreImage
 import CoreImage.CIFilterBuiltins
 
@@ -161,6 +162,26 @@ final class Compositor {
     private var frameCounter = 0
     /// Latest presenter webcam frame. Set by the render loop on the render queue.
     var webcamImage: CGImage?
+
+    /// Everything behind the screen content that only changes with settings: the background and
+    /// the device body with its shadow. Drawing these takes far longer than a frame lasts (the
+    /// shadow alone is ~25 ms at device resolution), so they are drawn once and copied in.
+    private struct BackdropKey: Equatable {
+        enum Frame: Equatable { case none, procedural(FrameColor), image }
+        var size: CGSize
+        var background: BackgroundSettings
+        var frame: Frame
+        var body: CGRect
+        var screen: CGRect
+        var bodyCorner: CGFloat
+        var screenCorner: CGFloat
+        var spec: DeviceSpec
+        var shadow: Bool
+    }
+    /// The source images are held so a cached backdrop is only reused for the same ones.
+    private var backdrops: [(key: BackdropKey, backgroundImage: CGImage?, frameImage: CGImage?, image: CGImage)] = []
+    /// The current device frame, resampled to the sizes it is being drawn at.
+    private var scaledScreens: [(buffer: CVPixelBuffer, crop: CGRect, width: Int, height: Int, image: CGImage)] = []
 
     // MARK: Geometry (pure — safe from any thread)
 
@@ -352,8 +373,8 @@ final class Compositor {
         defer { NSGraphicsContext.restoreGraphicsState() }
 
         ctx.interpolationQuality = .high
-        drawBackground(ctx, size: size, bg: config.profile.background)
-        drawDevice(ctx, layout: L, geometry: g, scale: s, device: device, config: config)
+        drawBackdrop(ctx, size: size, layout: L, geometry: g, scale: s, config: config)
+        drawDevice(ctx, layout: L, geometry: g, scale: s, device: device, config: config, bodyDrawn: true)
         if let r = L.webcamRect { drawWebcam(ctx, rect: r, cam: config.profile.webcam) }
         if let r = L.nameplateRect {
             drawNameplate(ctx, rect: r, plate: config.profile.nameplate, tokens: config.tokens, canvas: size, date: date)
@@ -562,6 +583,56 @@ final class Compositor {
         }
     }
 
+    // MARK: Backdrop
+
+    private func drawBackdrop(_ ctx: CGContext, size: CGSize, layout L: CanvasLayout, geometry g: FrameGeometry,
+                              scale s: CGFloat, config: RenderConfig) {
+        let bg = config.profile.background
+        let backgroundImage = bg.style == .image ? AssetStore.shared.asset(bg.imageFile) : nil
+        var frameImage: CGImage?
+        let frame: BackdropKey.Frame
+        switch config.frame {
+        case .none: frame = .none
+        case .procedural(let color): frame = .procedural(color)
+        case .image:
+            frame = .image
+            if let asset = g.asset { frameImage = g.rotateAsset ? rotatedCCW(asset.image) : asset.image }
+        }
+        let key = BackdropKey(size: size, background: bg, frame: frame, body: L.deviceRect, screen: L.screenRect,
+                              bodyCorner: g.bodyCorner * s, screenCorner: g.screenCorner * s, spec: config.spec,
+                              shadow: Self.shadowOn(config))
+        func paint(_ c: CGContext) {
+            drawBackground(c, size: size, bg: bg)
+            drawBody(c, layout: L, geometry: g, scale: s, config: config, shadowOn: key.shadow, frameImage: frameImage)
+        }
+
+        var image: CGImage?
+        if let i = backdrops.firstIndex(where: {
+            $0.key == key && $0.backgroundImage === backgroundImage && $0.frameImage === frameImage
+        }) {
+            image = backdrops[i].image
+            if i != backdrops.count - 1 { backdrops.append(backdrops.remove(at: i)) }   // most recent last
+        } else if let c = CGContext(data: nil, width: Int(size.width), height: Int(size.height), bitsPerComponent: 8,
+                                    bytesPerRow: 0, space: colorSpace,
+                                    bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue) {
+            c.translateBy(x: 0, y: size.height)
+            c.scaleBy(x: 1, y: -1)
+            c.interpolationQuality = .high
+            paint(c)
+            image = c.makeImage()
+            if let image {
+                // One for the canvas and one for the virtual camera's size, plus one to spare.
+                if backdrops.count >= 3 { backdrops.removeFirst() }
+                backdrops.append((key, backgroundImage, frameImage, image))
+            }
+        }
+        guard let image else { paint(ctx); return }
+        ctx.saveGState()
+        ctx.setBlendMode(.copy)
+        drawImage(ctx, image, in: CGRect(origin: .zero, size: size))
+        ctx.restoreGState()
+    }
+
     // MARK: Device
 
     private func rotatedCCW(_ image: CGImage) -> CGImage {
@@ -580,16 +651,58 @@ final class Compositor {
     }
 
     private func drawDevice(_ ctx: CGContext, layout L: CanvasLayout, geometry g: FrameGeometry, scale s: CGFloat,
-                            device: DeviceInput?, config: RenderConfig, allowShadow: Bool = true) {
+                            device: DeviceInput?, config: RenderConfig, allowShadow: Bool = true,
+                            bodyDrawn: Bool = false) {
+        let spec = config.spec
+        let screen = L.screenRect
+        let body = L.deviceRect
+        var frameImage: CGImage?
+        if let asset = g.asset { frameImage = g.rotateAsset ? rotatedCCW(asset.image) : asset.image }
+
+        // 1. Body / shadow (already there when the backdrop was copied in)
+        if !bodyDrawn {
+            drawBody(ctx, layout: L, geometry: g, scale: s, config: config,
+                     shadowOn: allowShadow && Self.shadowOn(config), frameImage: frameImage)
+        }
+
+        // 2. Screen content (clipped)
+        ctx.saveGState()
+        ctx.addPath(roundedPath(screen, g.screenCorner * s))
+        ctx.clip()
+        if let device {
+            let crop = Self.aspectFillCrop(content: device.size, target: screen.size)
+            drawScreen(ctx, device: device, crop: crop, in: screen)
+            drawRedactions(ctx, screen: screen, crop: crop, device: device, redactions: config.profile.redactions)
+            if config.profile.statusBar.enabled {
+                drawStatusBar(ctx, screen: screen, crop: crop, device: device, spec: spec, sb: config.profile.statusBar)
+            }
+        } else {
+            drawPlaceholder(ctx, screen: screen)
+        }
+        ctx.restoreGState()
+
+        // 3. Details on top
+        switch config.frame {
+        case .procedural:
+            drawDetails(ctx, spec: spec, body: body, screen: screen)
+        case .image:
+            if let frameImage { drawImage(ctx, frameImage, in: body) }
+        case .none:
+            break
+        }
+    }
+
+    private static func shadowOn(_ config: RenderConfig) -> Bool {
+        config.profile.background.padding > 0.005
+    }
+
+    /// The device body under the screen content, with its drop shadow.
+    private func drawBody(_ ctx: CGContext, layout L: CanvasLayout, geometry g: FrameGeometry, scale s: CGFloat,
+                          config: RenderConfig, shadowOn: Bool, frameImage: CGImage?) {
         let spec = config.spec
         let screen = L.screenRect
         let body = L.deviceRect
         let ss = min(screen.width, screen.height)
-        let shadowOn = allowShadow && config.profile.background.padding > 0.005
-        var frameImage: CGImage?
-        if let asset = g.asset { frameImage = g.rotateAsset ? rotatedCCW(asset.image) : asset.image }
-
-        // 1. Body / shadow
         switch config.frame {
         case .procedural(let color):
             let bodyCorner = g.bodyCorner * s
@@ -634,35 +747,69 @@ final class Compositor {
                 ctx.restoreGState()
             }
         }
+    }
 
-        // 2. Screen content (clipped)
-        ctx.saveGState()
-        ctx.addPath(roundedPath(screen, g.screenCorner * s))
-        ctx.clip()
-        if let device {
-            let cs = device.size
-            let crop = Self.aspectFillCrop(content: cs, target: screen.size)
-            let k = screen.width / crop.width
-            drawImage(ctx, device.image, in: CGRect(x: screen.minX - crop.minX * k, y: screen.minY - crop.minY * k,
-                                                   width: cs.width * k, height: cs.height * k))
-            drawRedactions(ctx, screen: screen, crop: crop, device: device, redactions: config.profile.redactions)
-            if config.profile.statusBar.enabled {
-                drawStatusBar(ctx, screen: screen, crop: crop, device: device, spec: spec, sb: config.profile.statusBar)
-            }
-        } else {
-            drawPlaceholder(ctx, screen: screen)
+    /// Draws the part of the device frame in `crop` so that it fills `screen`.
+    ///
+    /// Core Graphics takes about 12 ms to resample a phone-sized image, however it is asked to
+    /// do it, but about 1 ms to copy one pixel for pixel. So the frame is resampled with vImage
+    /// to the exact pixel size it will cover, once per device frame, and then copied in.
+    private func drawScreen(_ ctx: CGContext, device: DeviceInput, crop: CGRect, in screen: CGRect) {
+        let m = ctx.ctm
+        let target = screen.applying(m)   // the same space the image is drawn in below
+        let pixels = CGRect(x: target.minX.rounded(), y: target.minY.rounded(),
+                            width: max(1, target.width.rounded()), height: max(1, target.height.rounded()))
+        if m.b == 0, m.c == 0,
+           let image = screenImage(device: device, crop: crop, width: Int(pixels.width), height: Int(pixels.height)) {
+            ctx.saveGState()
+            ctx.concatenate(m.inverted())   // draw in pixels: the bitmap's own space is upright
+            ctx.draw(image, in: pixels)
+            ctx.restoreGState()
+            return
         }
-        ctx.restoreGState()
+        let cs = device.size
+        let k = screen.width / crop.width
+        drawImage(ctx, device.image, in: CGRect(x: screen.minX - crop.minX * k, y: screen.minY - crop.minY * k,
+                                               width: cs.width * k, height: cs.height * k))
+    }
 
-        // 3. Details on top
-        switch config.frame {
-        case .procedural:
-            drawDetails(ctx, spec: spec, body: body, screen: screen)
-        case .image:
-            if let frameImage { drawImage(ctx, frameImage, in: body) }
-        case .none:
-            break
+    private func screenImage(device: DeviceInput, crop: CGRect, width: Int, height: Int) -> CGImage? {
+        let pb = device.pixelBuffer
+        // Entries for earlier frames go first, so capture buffers return to their pool promptly.
+        scaledScreens.removeAll { $0.buffer !== pb }
+        if let hit = scaledScreens.first(where: { $0.crop == crop && $0.width == width && $0.height == height }) {
+            return hit.image
         }
+        guard CVPixelBufferGetPixelFormatType(pb) == kCVPixelFormatType_32BGRA, !CVPixelBufferIsPlanar(pb) else { return nil }
+        let full = CGRect(x: 0, y: 0, width: CVPixelBufferGetWidth(pb), height: CVPixelBufferGetHeight(pb))
+        let src = crop.integral.intersection(full)
+        guard !src.isNull, src.width >= 1, src.height >= 1 else { return nil }
+        if src == full, width == Int(full.width), height == Int(full.height) { return device.image }
+
+        guard CVPixelBufferLockBaseAddress(pb, .readOnly) == kCVReturnSuccess else { return nil }
+        defer { CVPixelBufferUnlockBaseAddress(pb, .readOnly) }
+        guard let base = CVPixelBufferGetBaseAddress(pb) else { return nil }
+        let srcRowBytes = CVPixelBufferGetBytesPerRow(pb)
+        var source = vImage_Buffer(data: base + Int(src.minY) * srcRowBytes + Int(src.minX) * 4,
+                                   height: vImagePixelCount(src.height), width: vImagePixelCount(src.width),
+                                   rowBytes: srcRowBytes)
+        let rowBytes = width * 4
+        guard let memory = malloc(rowBytes * height) else { return nil }
+        var dest = vImage_Buffer(data: memory, height: vImagePixelCount(height), width: vImagePixelCount(width),
+                                 rowBytes: rowBytes)
+        guard vImageScale_ARGB8888(&source, &dest, nil, vImage_Flags(kvImageHighQualityResampling)) == kvImageNoError,
+              let provider = CGDataProvider(dataInfo: nil, data: memory, size: rowBytes * height,
+                                            releaseData: { _, data, _ in free(UnsafeMutableRawPointer(mutating: data)) })
+        else { free(memory); return nil }
+        // Same pixel layout and color space as the device image, so colors come out identical.
+        guard let image = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: rowBytes,
+                                  space: device.image.colorSpace ?? colorSpace,
+                                  bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipFirst.rawValue
+                                                           | CGBitmapInfo.byteOrder32Little.rawValue),
+                                  provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+        else { return nil }
+        scaledScreens.append((pb, crop, width, height, image))
+        return image
     }
 
     private func drawDetails(_ ctx: CGContext, spec: DeviceSpec, body: CGRect, screen: CGRect) {
