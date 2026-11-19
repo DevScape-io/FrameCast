@@ -9,41 +9,54 @@ struct OutputControls: View {
     @EnvironmentObject var presenter: PresenterModel
 
     var body: some View {
-        // Hug the side that faces the output, so a banner widens the panel away from it.
+        // Notices go under the strip, and the panel is anchored by the strip's top edge, so
+        // a message appearing never moves the tools. Everything hugs the side facing the output.
         VStack(alignment: chrome.stripOnLeft ? .trailing : .leading, spacing: 8) {
+            // One glass shape: the strip, and the settings beside it when open.
+            HStack(alignment: .top, spacing: 0) {
+                if chrome.stripOnLeft, chrome.isCustomizing { settingsPane; paneDivider }
+                strip
+                    .background(GeometryReader { geo in
+                        Color.clear
+                            .onAppear { reportStripHeight(geo.size.height) }
+                            .onChange(of: geo.size.height) { _, h in reportStripHeight(h) }
+                    })
+                if !chrome.stripOnLeft, chrome.isCustomizing { paneDivider; settingsPane }
+            }
+            .glassPanel(in: RoundedRectangle(cornerRadius: 28, style: .continuous), interactive: true)
+
+            if let hint = model.presenterHint {
+                notice(hint)
+                    .foregroundStyle(.white)
+                    .background(Color.pink.opacity(0.9), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
             if let banner = model.banner {
-                Text(banner)
-                    .font(.callout.weight(.medium))
-                    .lineLimit(4)
-                    .frame(width: 200, alignment: .leading)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                notice(banner)
                     .glassPanel(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .onTapGesture { model.banner = nil }
                     .transition(.opacity)
             }
-            if let hint = model.presenterHint {
-                Text(hint)
-                    .font(.callout.weight(.medium))
-                    .foregroundStyle(.white)
-                    .lineLimit(4)
-                    .frame(width: 200, alignment: .leading)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color.pink.opacity(0.9), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
-            // One glass shape: the strip, and the settings beside it when open. The strip
-            // stays on the side that faces the output.
-            HStack(alignment: .top, spacing: 0) {
-                if chrome.stripOnLeft, chrome.isCustomizing { settingsPane; paneDivider }
-                strip
-                if !chrome.stripOnLeft, chrome.isCustomizing { paneDivider; settingsPane }
-            }
-            .glassPanel(in: RoundedRectangle(cornerRadius: 28, style: .continuous), interactive: true)
         }
         .padding(8)
         .fixedSize()
         .animation(.easeInOut(duration: 0.2), value: model.banner)
+    }
+
+    /// A short message, as wide as its text needs up to a limit, with even padding all round.
+    private func notice(_ text: String) -> some View {
+        Text(text)
+            .font(.callout.weight(.medium))
+            .lineLimit(4)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: 220, alignment: .leading)
+            .fixedSize(horizontal: true, vertical: true)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+    }
+
+    private func reportStripHeight(_ height: CGFloat) {
+        guard abs(chrome.stripHeight - height) > 0.5 else { return }
+        DispatchQueue.main.async { chrome.stripHeight = height }
     }
 
     private var strip: some View {

@@ -26,6 +26,9 @@ final class OutputChrome: ObservableObject {
     @Published var stripOnLeft = false
     /// Height available to the settings pane when the strip is expanded.
     @Published var settingsHeight: Double = 560
+    /// Height of the tool strip itself, reported by the view; used to keep the strip
+    /// vertically centered on the output no matter what else the panel is showing.
+    @Published var stripHeight: CGFloat = 0
     var setFrameHeight: (Double) -> Void = { _ in }
 }
 
@@ -88,6 +91,10 @@ final class OutputWindowController: NSObject, NSWindowDelegate {
             .removeDuplicates()
             .dropFirst()
             .sink { [weak self] on in DispatchQueue.main.async { self?.settingsToggled(on) } }
+            .store(in: &cancellables)
+        chrome.$stripHeight
+            .removeDuplicates()
+            .sink { [weak self] _ in DispatchQueue.main.async { self?.positionPanel() } }
             .store(in: &cancellables)
         model.$alwaysOnTop
             .sink { [weak self] _ in DispatchQueue.main.async { self?.applyLevel() } }
@@ -316,7 +323,11 @@ final class OutputWindowController: NSObject, NSWindowDelegate {
                 x = wf.maxX - gap - size.width
             }
         }
-        var y = wf.midY - size.height / 2
+        // Center the strip (not the whole panel) on the output: the panel's top edge sits
+        // half a strip above the middle, and anything below the strip hangs down from there.
+        let stripH = chrome.stripHeight > 0 ? chrome.stripHeight : size.height - 16
+        let top = wf.midY + stripH / 2 + 8   // 8 = the panel's own padding
+        var y = top - size.height
         y = min(max(y, visible.minY), visible.maxY - size.height)
 
         if chrome.stripOnLeft != onLeft { chrome.stripOnLeft = onLeft }
