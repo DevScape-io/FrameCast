@@ -1,0 +1,49 @@
+# FrameCast without the virtual camera (no paid Apple Developer account needed).
+# Generate with:  ./bootstrap.sh --no-vcam   (or: xcodegen generate --spec project-novcam.yml)
+# The app detects that the camera extension is missing and hides the feature gracefully.
+
+name: FrameCast
+options:
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+
+settings:
+  base:
+    APP_BUNDLE_ID: com.example.FrameCast
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Manual          # ad-hoc "Sign to Run Locally"; switch to Automatic + your team if you like
+    CODE_SIGN_IDENTITY: "-"
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_HARDENED_RUNTIME: YES
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+
+targets:
+  FrameCast:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/App
+    info:
+      path: Sources/App/Info.plist
+      properties:
+        CFBundleDisplayName: FrameCast
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.productivity
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        NSCameraUsageDescription: FrameCast captures the screen of iPhones and iPads connected over USB.
+        NSMicrophoneUsageDescription: FrameCast can record microphone narration alongside your device capture.
+    entitlements:
+      path: Sources/App/FrameCast.entitlements
+      properties:
+        com.apple.security.device.camera: true
+        com.apple.security.device.audio-input: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
+        PRODUCT_NAME: FrameCast
+        GENERATE_INFOPLIST_FILE: NO

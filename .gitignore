@@ -1,0 +1,9 @@
+FrameCast.xcodeproj/
+build/
+DerivedData/
+*.xcuserstate
+.DS_Store
+Sources/App/Info.plist
+Sources/App/FrameCast.entitlements
+Sources/CameraExtension/Info.plist
+Sources/CameraExtension/CameraExtension.entitlements
