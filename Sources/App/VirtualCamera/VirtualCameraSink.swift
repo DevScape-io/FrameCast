@@ -7,6 +7,8 @@ import CoreVideo
 /// which republishes them as the "FrameCast Camera" webcam.
 final class VirtualCameraSink {
     static let deviceName = "FrameCast Camera"
+    /// Must match the sink stream's name in the camera extension (CameraProvider.swift).
+    static let sinkStreamName = "FrameCast Input"
     static let size = CGSize(width: 1920, height: 1080)
 
     private let lock = NSLock()
@@ -23,7 +25,13 @@ final class VirtualCameraSink {
         disconnect()
         guard let device = Self.findDevice() else { return false }
         let streams = Self.streams(of: device)
-        guard let sink = streams.first(where: { Self.direction(of: $0) == 1 }) ?? (streams.count > 1 ? streams[1] : nil)
+        // The extension publishes two streams: the one apps read ("FrameCast Video") and the one
+        // we write into ("FrameCast Input"). Find ours by name; fall back to its direction, then
+        // to its position. Picking the wrong one looks like success but no frames ever arrive,
+        // so callers keep seeing the extension's "waiting" card.
+        guard let sink = streams.first(where: { Self.name(of: $0) == Self.sinkStreamName })
+                ?? streams.first(where: { Self.direction(of: $0) == 0 })
+                ?? (streams.count > 1 ? streams[1] : nil)
         else { return false }
 
         var unmanaged: Unmanaged<CMSimpleQueue>?
@@ -113,7 +121,8 @@ final class VirtualCameraSink {
         return ids
     }
 
-    /// 0 = output (source), 1 = input (sink).
+    /// CoreMediaIO's convention: 0 = an output stream (the host writes to the device — our sink),
+    /// 1 = an input stream (the host reads from the device — the camera feed).
     private static func direction(of stream: CMIOStreamID) -> UInt32? {
         var addr = address(CMIOObjectPropertySelector(kCMIOStreamPropertyDirection))
         var value: UInt32 = 0
