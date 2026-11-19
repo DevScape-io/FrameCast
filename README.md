@@ -85,14 +85,23 @@ iPhone/iPad ─USB─► CoreMediaIO (screen-capture devices on) ─► AVCaptur
 
 | Folder | Contents |
 |---|---|
-| `Sources/App/Capture` | Turning on screen-capture devices, the AVCapture sessions, and audio retiming |
-| `Sources/App/Device` | The model catalog (resolution, bezel, corner radius, status bar) and libimobiledevice lookup |
-| `Sources/App/Frames` | Imported frame library and transparent screen-area detection |
-| `Sources/App/Overlay` | Profiles, tokens and persistence (`~/Library/Application Support/FrameCast`) |
+| `Sources/App/App` | App entry point, menus, and the model that ties everything together |
+| `Sources/App/Capture` | Turning on screen-capture devices, the AVCapture sessions (device, microphone, webcam), and audio retiming |
+| `Sources/App/Devices` | The model catalog, libimobiledevice lookup, and the imported frame library |
+| `Sources/App/Profiles` | Profiles (background, branding, webcam, nameplate), text tokens and persistence |
 | `Sources/App/Render` | Compositor, render loop and presenter state |
 | `Sources/App/Output` | Recorder, screenshots, file naming and the trim window |
 | `Sources/App/VirtualCamera` | Extension installer and the CMIO sink client |
+| `Sources/App/Support` | Settings, file locations, the image store, global shortcuts, colors |
+| `Sources/App/UI/MainWindow` | Main window, settings panel and the live preview view |
+| `Sources/App/UI/OutputWindow` | The separate output window, its control strip and settings pane |
+| `Sources/App/UI/Settings` | The Settings window and frame library editor |
+| `Sources/App/UI/About` | About window and the Support Us link |
+| `Sources/App/UI/Shared` | Controls and helpers used by more than one window |
 | `Sources/CameraExtension` | The camera system extension (source and sink streams) |
+| `Generated/` | Info.plists and entitlements written by XcodeGen; not checked in |
+
+`FrameCast.xcodeproj` is generated too. After adding, moving or removing files, run `./bootstrap.sh` (or `xcodegen generate`) to rebuild it.
 
 ## Known limitations
 
