@@ -152,6 +152,16 @@ final class AppModel: ObservableObject {
         registerHotKeys()
         vcamInstaller.refreshStatus()
 
+        // Bring the virtual camera back if it was on last time, including right after it's installed.
+        if settings.virtualCameraWanted { setVirtualCamera(true, quiet: true) }
+        vcamInstaller.$isInstalled
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] installed in
+                guard let self, installed, self.settings.virtualCameraWanted, !self.virtualCameraOn else { return }
+                self.setVirtualCamera(true, quiet: true)
+            }
+            .store(in: &cancellables)
 
         AVCaptureDevice.requestAccess(for: .video) { granted in
             Task { @MainActor in
@@ -509,13 +519,16 @@ final class AppModel: ObservableObject {
 
     // MARK: - Virtual camera
 
-    func setVirtualCamera(_ on: Bool) {
+    /// `quiet` is for automatic attempts (launch, after install): no banner if it isn't there yet.
+    func setVirtualCamera(_ on: Bool, quiet: Bool = false) {
+        if !quiet { settings.virtualCameraWanted = on }
         if on {
             if vcamSink.connect() {
                 renderLoop.setVirtualCamera(vcamSink)
                 virtualCameraOn = true
             } else {
                 virtualCameraOn = false
+                guard !quiet else { return }
                 vcamInstaller.refreshStatus()
                 banner = "The virtual camera isn’t installed yet — open Settings › Virtual Camera."
             }
