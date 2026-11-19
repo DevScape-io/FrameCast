@@ -9,6 +9,7 @@ struct MainView: View {
 
     @State private var windowBox = WindowBox()
     @State private var appliedInitialVisibility = false
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Group {
@@ -55,6 +56,10 @@ struct MainView: View {
                 if model.outputDetached { window.orderOut(nil) }
             }
         })
+        .onAppear {
+            // First launch: walk through what the buttons do.
+            if WelcomeView.isDue { openWindow(id: WelcomeView.windowID) }
+        }
         .onChange(of: model.outputDetached) { _, detached in
             // While the output is separate, everything lives in its strip, so this window
             // steps aside. It comes back when the output is reattached. (Only done at the

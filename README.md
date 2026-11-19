@@ -96,6 +96,7 @@ iPhone/iPad ─USB─► CoreMediaIO (screen-capture devices on) ─► AVCaptur
 | `Sources/App/UI/MainWindow` | Main window, settings panel and the live preview view |
 | `Sources/App/UI/OutputWindow` | The separate output window, its control strip and settings pane |
 | `Sources/App/UI/Settings` | The Settings window and frame library editor |
+| `Sources/App/UI/Onboarding` | The first-run welcome walkthrough |
 | `Sources/App/UI/About` | About window and the Support Us link |
 | `Sources/App/UI/Shared` | Controls and helpers used by more than one window |
 | `Sources/CameraExtension` | The camera system extension (source and sink streams) |

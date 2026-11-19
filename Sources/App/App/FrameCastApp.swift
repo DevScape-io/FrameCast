@@ -17,6 +17,13 @@ struct FrameCastApp: App {
         .defaultSize(width: 1280, height: 860)
         .commands { FrameCastCommands(model: model, presenter: model.presenter, settings: model.settings) }
 
+        Window("Welcome to FrameCast", id: WelcomeView.windowID) {
+            WelcomeView()
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+        .commandsRemoved()   // opened on first launch and from the Help menu
+
         Window("About FrameCast", id: AboutView.windowID) {
             AboutView()
         }
@@ -47,6 +54,8 @@ struct FrameCastCommands: Commands {
             Button("About FrameCast") { openWindow(id: AboutView.windowID) }
         }
         CommandGroup(replacing: .help) {
+            Button("Welcome to FrameCast…") { openWindow(id: WelcomeView.windowID) }
+            Divider()
             Button(SupportUs.menuTitle) { SupportUs.open() }
             Divider()
             Button("About FrameCast") { openWindow(id: AboutView.windowID) }

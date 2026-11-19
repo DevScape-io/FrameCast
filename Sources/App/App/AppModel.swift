@@ -145,7 +145,8 @@ final class AppModel: ObservableObject {
             })
         }
 
-        if SupportUs.registerLaunchAndCheck() {
+        // Not on the launch that shows the welcome walkthrough; one thing at a time.
+        if SupportUs.registerLaunchAndCheck(), !WelcomeView.isDue {
             // Give the window a moment to settle; the prompt shouldn't be the first thing seen.
             DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
                 withAnimation { self?.showSupportNudge = true }
