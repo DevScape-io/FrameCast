@@ -76,13 +76,21 @@ struct OutputControls: View {
             RecordButton(compact: true)
                 .buttonStyle(.plain)
             iconButton("camera.viewfinder", help: "Screenshot (⇧⌘S)") { model.takeScreenshot() }
+            toggleButton(settings.recordMicrophone ? "mic.fill" : "mic.slash", isOn: settings.recordMicrophone,
+                         help: "Record microphone narration with the video") {
+                settings.recordMicrophone.toggle()
+            }
+            toggleButton(model.virtualCameraOn ? "video.fill" : "video", isOn: model.virtualCameraOn,
+                         help: "Virtual camera — show this in Zoom, Teams, Meet") {
+                model.setVirtualCamera(!model.virtualCameraOn)
+            }
 
             separator
 
             // Canvas / Frame Only and their options live in one popover.
             // Expands this strip sideways into the output settings.
             toggleButton("slider.horizontal.3", isOn: chrome.isCustomizing,
-                         help: "Output settings: style, background, webcam, nameplate") {
+                         help: "Settings: device, frame, canvas, camera, branding") {
                 chrome.isCustomizing.toggle()
             }
             toggleButton(model.alwaysOnTop ? "pin.fill" : "pin", isOn: model.alwaysOnTop,
@@ -103,12 +111,11 @@ struct OutputControls: View {
     }
 
     private var settingsPane: some View {
-        ScrollView(.vertical) {
-            OutputCustomizeView(chrome: chrome)
-                .environmentObject(model.profiles)
-        }
-        .frame(width: 300, height: chrome.settingsHeight)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        OutputSettingsPane(chrome: chrome)
+            .environmentObject(model.profiles)
+            .environmentObject(model.frames)
+            .frame(width: 340, height: chrome.settingsHeight)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     private var separator: some View {

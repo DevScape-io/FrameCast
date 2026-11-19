@@ -8,6 +8,7 @@ struct MainView: View {
     @EnvironmentObject var frames: FrameLibrary
 
     @State private var windowBox = WindowBox()
+    @State private var appliedInitialVisibility = false
 
     var body: some View {
         Group {
@@ -48,9 +49,22 @@ struct MainView: View {
             windowBox.window = window
             window.level = model.alwaysOnTop && !model.outputDetached ? .floating : .normal
             window.collectionBehavior.insert(.fullScreenAuxiliary)
+            // Launching with the output already separate: this window isn't needed.
+            if !appliedInitialVisibility {
+                appliedInitialVisibility = true
+                if model.outputDetached { window.orderOut(nil) }
+            }
         })
         .onChange(of: model.outputDetached) { _, detached in
-            resizeWindow(forDetached: detached)
+            // While the output is separate, everything lives in its strip, so this window
+            // steps aside. It comes back when the output is reattached. (Only done at the
+            // moment of switching, so reopening it from the Dock or Window menu still works.)
+            if detached {
+                windowBox.window?.orderOut(nil)
+            } else {
+                windowBox.window?.makeKeyAndOrderFront(nil)
+                resizeWindow(forDetached: false)
+            }
         }
     }
 
