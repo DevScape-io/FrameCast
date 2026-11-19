@@ -36,6 +36,8 @@ struct CanvasLayout: Equatable {
     var screenRect: CGRect = .zero
     var headerRect: CGRect?
     var footerRect: CGRect?
+    var webcamRect: CGRect?
+    var nameplateRect: CGRect?
     var hasDevice = false
 }
 
@@ -157,6 +159,8 @@ final class Compositor {
     private var statusColor = RGBAColor.white
     private var statusColorAge = 1_000
     private var frameCounter = 0
+    /// Latest presenter webcam frame. Set by the render loop on the render queue.
+    var webcamImage: CGImage?
 
     // MARK: Geometry (pure — safe from any thread)
 
@@ -225,7 +229,63 @@ final class Compositor {
             bottom = min(bottom, r.minY - margin * 0.5)
         }
 
-        let avail = CGRect(x: pad, y: top, width: max(10, W - 2 * pad), height: max(10, bottom - top))
+        // Presenter webcam and nameplate. Side by side gives the webcam its own column and
+        // shifts the device into what's left; a corner tile floats over the canvas.
+        var left = pad, right = W - pad
+        let cam = p.webcam, plate = p.nameplate
+        let placement = plate.placement(with: cam)
+        let attached = plate.enabled && placement != .corner     // card sits above or below the webcam
+        let sideLayout = cam.enabled && cam.layout == .side
+        let gap = margin * 0.6
+        let colW = min(max(CGFloat(cam.size), sideLayout ? 0.12 : 0.08), 0.45) * W
+        let plateSize = plate.enabled
+            ? nameplateMetrics(plate, tokens: config.tokens, canvas: canvas,
+                               maxWidth: attached ? (sideLayout ? colW : max(colW, W * 0.3)) : W * 0.5).size
+            : nil
+        func cornerRect(_ corner: CanvasCorner, _ size: CGSize) -> CGRect {
+            CGRect(x: corner.isLeft ? margin : W - margin - size.width,
+                   y: corner.isTop ? max(top, margin) : min(bottom, H - margin) - size.height,
+                   width: size.width, height: size.height)
+        }
+        /// Puts the card above or below the webcam tile, centered on it and kept on the canvas.
+        func attach(_ ps: CGSize, to tile: CGRect) -> CGRect {
+            let wanted: CGFloat
+            switch plate.align {
+            case .left: wanted = tile.minX
+            case .center: wanted = tile.midX - ps.width / 2
+            case .right: wanted = tile.maxX - ps.width
+            }
+            let x = min(max(wanted, margin), W - margin - ps.width)
+            let y = placement == .aboveWebcam ? tile.minY - gap - ps.height : tile.maxY + gap
+            return CGRect(x: x, y: y, width: ps.width, height: ps.height)
+        }
+
+        if sideLayout {
+            let colX = cam.side == .left ? margin : W - margin - colW
+            let colH = max(10, bottom - top)
+            let plateH = attached ? (plateSize.map { $0.height + gap } ?? 0) : 0
+            let tileH = min(cam.shape == .circle ? colW : colW * 0.75, colH - plateH)
+            let tileW = cam.shape == .circle ? tileH : colW
+            // The tile and its card are centered in the column as one group.
+            let groupTop = top + (colH - tileH - plateH) / 2
+            let tileY = placement == .aboveWebcam && attached ? groupTop + plateH : groupTop
+            let tile = CGRect(x: colX + (colW - tileW) / 2, y: tileY, width: tileW, height: tileH)
+            L.webcamRect = tile
+            if attached, let ps = plateSize { L.nameplateRect = attach(ps, to: tile) }
+            if cam.side == .left { left = max(left, colX + colW + margin) } else { right = min(right, colX - margin) }
+        } else if cam.enabled {
+            var tile = cornerRect(cam.corner, CGSize(width: colW, height: cam.shape == .circle ? colW : colW * 0.75))
+            if attached, let ps = plateSize {
+                // Make room when the card would fall off the edge the tile is tucked against.
+                if placement == .belowWebcam, !cam.corner.isTop { tile.origin.y -= ps.height + gap }
+                if placement == .aboveWebcam, cam.corner.isTop { tile.origin.y += ps.height + gap }
+                L.nameplateRect = attach(ps, to: tile)
+            }
+            L.webcamRect = tile
+        }
+        if !attached, let ps = plateSize { L.nameplateRect = cornerRect(plate.corner, ps) }
+
+        let avail = CGRect(x: left, y: top, width: max(10, right - left), height: max(10, bottom - top))
         let c = content ?? placeholderContentSize(config)
         let g = geometry(content: c, config: config)
         let s = min(avail.width / g.bounds.width, avail.height / g.bounds.height)
@@ -249,6 +309,8 @@ final class Compositor {
         if p.header.enabled { bands += CGFloat(p.header.height) + 0.04 }
         if p.footer.enabled { bands += CGFloat(p.footer.height) + 0.04 }
         var W = fw / max(0.3, 1 - 2 * pad)
+        // Side by side: widen the canvas so the device keeps its size next to the webcam column.
+        if p.webcam.enabled, p.webcam.layout == .side { W /= max(0.4, 1 - CGFloat(p.webcam.size) - 0.04) }
         var H = fh / max(0.3, 1 - 2 * pad - bands)
         let scale = min(1, config.maxAutoSide / max(W, H))
         W *= scale
@@ -292,6 +354,10 @@ final class Compositor {
         ctx.interpolationQuality = .high
         drawBackground(ctx, size: size, bg: config.profile.background)
         drawDevice(ctx, layout: L, geometry: g, scale: s, device: device, config: config)
+        if let r = L.webcamRect { drawWebcam(ctx, rect: r, cam: config.profile.webcam) }
+        if let r = L.nameplateRect {
+            drawNameplate(ctx, rect: r, plate: config.profile.nameplate, tokens: config.tokens, canvas: size, date: date)
+        }
 
         if includeOverlays {
             let p = config.profile
@@ -346,6 +412,128 @@ final class Compositor {
     static func silhouetteCorner(layout L: CanvasLayout, geometry g: FrameGeometry, scale s: CGFloat, spec: DeviceSpec) -> CGFloat {
         if g.asset == nil { return g.bodyCorner * s }
         return spec.bodyCornerRatio * min(L.screenRect.width, L.screenRect.height)
+    }
+
+    // MARK: Presenter webcam and nameplate
+
+    private func drawWebcam(_ ctx: CGContext, rect: CGRect, cam: WebcamSettings) {
+        let path = cam.shape == .circle ? CGPath(ellipseIn: rect, transform: nil)
+                                        : roundedPath(rect, rect.width * 0.07)
+        ctx.saveGState()
+        ctx.setShadow(offset: CGSize(width: 0, height: rect.height * 0.02), blur: rect.width * 0.08,
+                      color: CGColor(gray: 0, alpha: 0.45))
+        ctx.addPath(path)
+        ctx.setFillColor(CGColor(gray: 0.12, alpha: 1))
+        ctx.fillPath()
+        ctx.restoreGState()
+
+        ctx.saveGState()
+        ctx.addPath(path)
+        ctx.clip()
+        if let img = webcamImage {
+            let size = CGSize(width: img.width, height: img.height)
+            let crop = Self.aspectFillCrop(content: size, target: rect.size)
+            let k = rect.width / crop.width
+            if cam.mirrored {
+                ctx.translateBy(x: rect.midX * 2, y: 0)
+                ctx.scaleBy(x: -1, y: 1)
+            }
+            drawImage(ctx, img, in: CGRect(x: rect.minX - crop.minX * k, y: rect.minY - crop.minY * k,
+                                           width: size.width * k, height: size.height * k))
+        } else {
+            let a = attributed("Starting camera…", size: rect.width * 0.07, weight: .medium, color: RGBAColor(1, 1, 1, 0.6))
+            let ts = a.size()
+            a.draw(at: CGPoint(x: rect.midX - ts.width / 2, y: rect.midY - ts.height / 2))
+        }
+        ctx.restoreGState()
+
+        if cam.border {
+            let lw = max(2, rect.width * 0.012)
+            ctx.addPath(cam.shape == .circle ? CGPath(ellipseIn: rect.insetBy(dx: lw / 2, dy: lw / 2), transform: nil)
+                                             : roundedPath(rect.insetBy(dx: lw / 2, dy: lw / 2), rect.width * 0.07 - lw / 2))
+            ctx.setStrokeColor(cam.borderColor.cgColor)
+            ctx.setLineWidth(lw)
+            ctx.strokePath()
+        }
+    }
+
+    private func drawNameplate(_ ctx: CGContext, rect: CGRect, plate: NameplateSettings, tokens: TokenContext,
+                               canvas: CGSize, date: Date) {
+        let m = Self.nameplateMetrics(plate, tokens: tokens, canvas: canvas, maxWidth: rect.width, date: date)
+        ctx.saveGState()
+        ctx.setShadow(offset: CGSize(width: 0, height: 2 * m.unit), blur: 12 * m.unit, color: CGColor(gray: 0, alpha: 0.3))
+        let radius = min(rect.height * 0.28, 18 * m.unit)
+        ctx.addPath(roundedPath(rect, radius))
+        ctx.setFillColor(plate.background.cgColor)
+        ctx.fillPath()
+        ctx.restoreGState()
+        if plate.border {
+            let lw = max(2, 3 * m.unit)
+            ctx.addPath(roundedPath(rect.insetBy(dx: lw / 2, dy: lw / 2), max(0, radius - lw / 2)))
+            ctx.setStrokeColor(plate.borderColor.cgColor)
+            ctx.setLineWidth(lw)
+            ctx.strokePath()
+        }
+
+        var x = rect.minX + m.padding
+        if let logo = m.logo {
+            // An icon: a square slot with rounded corners, the image fitted inside it.
+            let side = rect.height - 2 * m.padding
+            let slot = CGRect(x: x, y: rect.minY + m.padding, width: side, height: side)
+            let k = min(side / CGFloat(max(1, logo.width)), side / CGFloat(max(1, logo.height)))
+            let iw = CGFloat(logo.width) * k, ih = CGFloat(logo.height) * k
+            ctx.saveGState()
+            ctx.addPath(roundedPath(slot, side * 0.22))
+            ctx.clip()
+            drawImage(ctx, logo, in: CGRect(x: slot.midX - iw / 2, y: slot.midY - ih / 2, width: iw, height: ih))
+            ctx.restoreGState()
+            x += side + m.padding * 0.8
+        }
+        var y = rect.midY - m.textHeight / 2
+        for line in m.lines {
+            line.draw(at: CGPoint(x: x, y: y))
+            y += line.size().height
+        }
+    }
+
+    struct NameplateMetrics {
+        var size: CGSize = .zero
+        var unit: CGFloat = 1
+        var padding: CGFloat = 0
+        var textHeight: CGFloat = 0
+        var lines: [NSAttributedString] = []
+        var logo: CGImage?
+    }
+
+    /// Sizes the nameplate card for its text and logo, shrinking it to fit `maxWidth`.
+    static func nameplateMetrics(_ plate: NameplateSettings, tokens: TokenContext, canvas: CGSize, maxWidth: CGFloat,
+                                 date: Date = Date()) -> NameplateMetrics {
+        func build(_ unit: CGFloat) -> NameplateMetrics {
+            var m = NameplateMetrics()
+            m.unit = unit
+            m.padding = 14 * unit
+            let name = Tokens.resolve(plate.name, tokens, date: date).trimmingCharacters(in: .whitespaces)
+            if !name.isEmpty { m.lines.append(attributed(name, size: 30 * unit, weight: .semibold, color: plate.textColor)) }
+            // Title and company each get their own line under the name.
+            for text in [plate.title, plate.company] {
+                let line = Tokens.resolve(text, tokens, date: date).trimmingCharacters(in: .whitespaces)
+                guard !line.isEmpty else { continue }
+                m.lines.append(attributed(line, size: 20 * unit, weight: .regular,
+                                          color: plate.textColor.withAlpha(plate.textColor.a * 0.8)))
+            }
+            let textW = m.lines.map { $0.size().width }.max() ?? 0
+            m.textHeight = m.lines.reduce(0) { $0 + $1.size().height }
+            let contentH = max(m.textHeight, 44 * unit)
+            var width = m.padding * 2 + textW
+            m.logo = AssetStore.shared.asset(plate.logoFile)
+            if m.logo != nil { width += contentH + (textW > 0 ? m.padding * 0.8 : 0) }   // square icon slot
+            m.size = CGSize(width: width.rounded(.up), height: (contentH + m.padding * 2).rounded(.up))
+            return m
+        }
+        let unit = canvas.height / 1080 * CGFloat(plate.scale)
+        var m = build(unit)
+        if m.size.width > maxWidth, maxWidth > 20 { m = build(unit * maxWidth / m.size.width * 0.99) }
+        return m
     }
 
     // MARK: Background

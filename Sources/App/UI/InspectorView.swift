@@ -2,12 +2,13 @@ import SwiftUI
 
 /// What the inspector is showing. Ordered the way a session is set up.
 enum InspectorTab: String, CaseIterable, Identifiable {
-    case canvas, device, branding, presenter
+    case canvas, device, camera, branding, presenter
     var id: String { rawValue }
     var symbol: String {
         switch self {
         case .canvas: return "photo.artframe"
         case .device: return "iphone"
+        case .camera: return "person.crop.square"
         case .branding: return "seal"
         case .presenter: return "pencil.tip.crop.circle"
         }
@@ -16,6 +17,7 @@ enum InspectorTab: String, CaseIterable, Identifiable {
         switch self {
         case .canvas: return "Canvas"
         case .device: return "Device"
+        case .camera: return "Camera"
         case .branding: return "Branding"
         case .presenter: return "Presenter"
         }
@@ -27,6 +29,7 @@ struct InspectorView: View {
     @EnvironmentObject var profiles: ProfileStore
     @EnvironmentObject var settings: AppSettings
     @EnvironmentObject var presenter: PresenterModel
+    @EnvironmentObject var model: AppModel
 
     @AppStorage("inspectorTab") private var tab = InspectorTab.canvas
     @State private var renaming = false
@@ -53,6 +56,22 @@ struct InspectorView: View {
                     frameSection
                     statusBarSection(p.statusBar)
                     redactionSection(p.redactions)
+                case .camera:
+                    // The webcam and nameplate are drawn on the canvas, so they only apply in
+                    // Canvas mode. Frame Only shows the bare device.
+                    if frameOnlyOutput {
+                        Section {
+                            Label("The webcam and nameplate appear on the canvas. The output window is in Frame Only mode, which shows just the device.",
+                                  systemImage: "info.circle")
+                                .foregroundStyle(.secondary)
+                            Button("Switch Output to Canvas") { settings.outputStyle = .canvas }
+                        }
+                    }
+                    Group {
+                        webcamSection(p.webcam)
+                        nameplateSection(p.nameplate)
+                    }
+                    .disabled(frameOnlyOutput)
                 case .branding:
                     watermarkSection(p.watermark)
                     headerSection(p.header)
@@ -66,6 +85,10 @@ struct InspectorView: View {
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)
         }
+    }
+
+    private var frameOnlyOutput: Bool {
+        model.outputDetached && settings.outputStyle == .frameOnly
     }
 
     // MARK: Tabs
@@ -186,6 +209,81 @@ struct InspectorView: View {
         } footer: {
             Text("Redactions and drawings are always included.")
                 .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: Camera
+
+    @State private var webcams: [(id: String, name: String)] = []
+
+    private func webcamSection(_ cam: Binding<WebcamSettings>) -> some View {
+        Section {
+            if cam.wrappedValue.enabled {
+                Picker("Camera", selection: $settings.webcamID) {
+                    Text("System default").tag("")
+                    ForEach(webcams, id: \.id) { Text($0.name).tag($0.id) }
+                }
+                Picker("Layout", selection: cam.layout) {
+                    ForEach(WebcamLayout.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                if cam.wrappedValue.layout == .corner {
+                    LabeledContent("Position") { CornerPicker(selection: cam.corner) }
+                } else {
+                    Picker("Webcam side", selection: cam.side) {
+                        ForEach(CanvasSide.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                slider("Size", cam.size, cam.wrappedValue.layout == .corner ? 0.08...0.4 : 0.15...0.45)
+                Picker("Shape", selection: cam.shape) {
+                    ForEach(WebcamShape.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                Toggle("Mirror", isOn: cam.mirrored)
+                BorderRow(isOn: cam.border, color: cam.borderColor)
+            }
+        } header: {
+            Toggle("Webcam", isOn: cam.enabled).toggleStyle(.switch).font(.headline)
+        } footer: {
+            if cam.wrappedValue.enabled, cam.wrappedValue.layout == .side {
+                Text("The device moves to the \(cam.wrappedValue.side == .left ? "right" : "left") to make room.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .onAppear {
+            webcams = ScreenCaptureDevices.webcams().map { ($0.uniqueID, $0.localizedName) }
+        }
+    }
+
+    private func nameplateSection(_ plate: Binding<NameplateSettings>) -> some View {
+        Section {
+            if plate.wrappedValue.enabled {
+                TextField("Name", text: plate.name)
+                TextField("Title", text: plate.title, prompt: Text("Optional"))
+                TextField("Company", text: plate.company, prompt: Text("Optional"))
+                HStack {
+                    AssetThumbnail(fileName: plate.wrappedValue.logoFile)
+                    Button("Choose Icon…") {
+                        if let f = Panels.importAsset(title: "Nameplate icon (PNG)") { plate.wrappedValue.logoFile = f }
+                    }
+                    if plate.wrappedValue.logoFile != nil {
+                        Button("Remove") { plate.wrappedValue.logoFile = nil }
+                    }
+                }
+                NameplatePlacementRows(plate: plate, webcam: profiles.selected.webcam)
+                slider("Size", plate.scale, 0.5...2.5)
+                BorderRow(isOn: plate.border, color: plate.borderColor)
+                ColorPicker("Card color", selection: plate.background.swiftUIColor)
+                ColorPicker("Text color", selection: plate.textColor.swiftUIColor, supportsOpacity: false)
+            }
+        } header: {
+            Toggle("Nameplate", isOn: plate.enabled).toggleStyle(.switch).font(.headline)
+        } footer: {
+            if plate.wrappedValue.enabled {
+                Text("Text tokens such as {fullname} and {company} work here.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -376,6 +474,72 @@ struct InspectorView: View {
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
                 .frame(width: 44, alignment: .trailing)
+        }
+    }
+}
+
+/// A 2×2 grid for choosing a corner of the canvas.
+struct CornerPicker: View {
+    @Binding var selection: CanvasCorner
+
+    var body: some View {
+        Grid(horizontalSpacing: 3, verticalSpacing: 3) {
+            GridRow { cell(.topLeft); cell(.topRight) }
+            GridRow { cell(.bottomLeft); cell(.bottomRight) }
+        }
+        .padding(3)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+
+    private func cell(_ corner: CanvasCorner) -> some View {
+        Button { selection = corner } label: {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(selection == corner ? Color.accentColor : Color.secondary.opacity(0.25))
+                .frame(width: 30, height: 20)
+        }
+        .buttonStyle(.plain)
+        .help(corner.label)
+        .accessibilityLabel(corner.label)
+        .accessibilityAddTraits(selection == corner ? .isSelected : [])
+    }
+}
+
+/// Nameplate placement: above or below the webcam (when it's on), or a canvas corner.
+struct NameplatePlacementRows: View {
+    @Binding var plate: NameplateSettings
+    let webcam: WebcamSettings
+
+    var body: some View {
+        if webcam.enabled {
+            Picker("Placement", selection: Binding(get: { plate.placement(with: webcam) }, set: { plate.anchor = $0 })) {
+                ForEach(NameplateAnchor.allCases) { Text($0.label).tag($0) }
+            }
+        }
+        if plate.placement(with: webcam) == .corner {
+            LabeledContent("Position") { CornerPicker(selection: $plate.corner) }
+        } else {
+            Picker("Justify", selection: $plate.align) {
+                Image(systemName: "align.horizontal.left").tag(HAlign.left).help("Left edge of the webcam")
+                Image(systemName: "align.horizontal.center").tag(HAlign.center).help("Centered on the webcam")
+                Image(systemName: "align.horizontal.right").tag(HAlign.right).help("Right edge of the webcam")
+            }
+            .pickerStyle(.segmented)
+        }
+    }
+}
+
+/// A border on/off switch with its color beside it.
+struct BorderRow: View {
+    @Binding var isOn: Bool
+    @Binding var color: RGBAColor
+
+    var body: some View {
+        HStack {
+            Toggle("Border", isOn: $isOn)
+            if isOn {
+                ColorPicker("Border color", selection: $color.swiftUIColor)
+                    .labelsHidden()
+            }
         }
     }
 }

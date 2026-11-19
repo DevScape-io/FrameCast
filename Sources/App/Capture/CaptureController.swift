@@ -19,6 +19,15 @@ enum ScreenCaptureDevices {
         AVCaptureDevice.DiscoverySession(deviceTypes: [.external], mediaType: .muxed, position: .unspecified).devices
     }
 
+    /// Real cameras for the presenter's picture: built-in, USB and Continuity Camera. Leaves out
+    /// iOS screen-capture devices and FrameCast's own virtual camera.
+    static func webcams() -> [AVCaptureDevice] {
+        let screens = Set(discover().map(\.uniqueID))
+        return AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera, .external, .continuityCamera],
+                                                mediaType: .video, position: .unspecified).devices
+            .filter { !screens.contains($0.uniqueID) && $0.localizedName != VirtualCameraSink.deviceName }
+    }
+
     static func microphones() -> [AVCaptureDevice] {
         AVCaptureDevice.DiscoverySession(deviceTypes: [.microphone, .external], mediaType: .audio, position: .unspecified).devices
     }
@@ -51,6 +60,10 @@ enum CaptureError: LocalizedError {
 final class CaptureController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate {
     private let session = AVCaptureSession()
     private let micSession = AVCaptureSession()
+    private let camSession = AVCaptureSession()
+    private let camQueue = DispatchQueue(label: "FrameCast.capture.webcam", qos: .userInitiated)
+    private let camOutput = AVCaptureVideoDataOutput()
+    private var camInput: AVCaptureDeviceInput?
     private let sessionQueue = DispatchQueue(label: "FrameCast.capture.session")
     private let videoQueue = DispatchQueue(label: "FrameCast.capture.video", qos: .userInteractive)
     private let audioQueue = DispatchQueue(label: "FrameCast.capture.audio", qos: .userInitiated)
@@ -72,6 +85,8 @@ final class CaptureController: NSObject, AVCaptureVideoDataOutputSampleBufferDel
     var onVideoFrame: ((CVPixelBuffer) -> Void)?
     var onDeviceAudio: ((CMSampleBuffer) -> Void)?
     var onMicAudio: ((CMSampleBuffer) -> Void)?
+    /// Presenter webcam frames; nil when the webcam turns off.
+    var onWebcamFrame: ((CVPixelBuffer?) -> Void)?
 
     override init() {
         super.init()
@@ -80,6 +95,9 @@ final class CaptureController: NSObject, AVCaptureVideoDataOutputSampleBufferDel
         videoOutput.setSampleBufferDelegate(self, queue: videoQueue)
         audioOutput.setSampleBufferDelegate(self, queue: audioQueue)
         micOutput.setSampleBufferDelegate(self, queue: micQueue)
+        camOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+        camOutput.alwaysDiscardsLateVideoFrames = true
+        camOutput.setSampleBufferDelegate(self, queue: camQueue)
         audioPreview.volume = 0
     }
 
@@ -169,11 +187,51 @@ final class CaptureController: NSObject, AVCaptureVideoDataOutputSampleBufferDel
         }
     }
 
+    /// Starts, switches or stops the presenter webcam. Safe to call repeatedly with the same values.
+    func setWebcam(enabled: Bool, uniqueID: String) {
+        sessionQueue.async {
+            var wanted: AVCaptureDevice?
+            if enabled {
+                let cams = ScreenCaptureDevices.webcams()
+                wanted = cams.first { $0.uniqueID == uniqueID }
+                    ?? AVCaptureDevice.default(for: .video).flatMap { d in cams.first { $0.uniqueID == d.uniqueID } }
+                    ?? cams.first
+            }
+            if wanted?.uniqueID == self.camInput?.device.uniqueID {
+                if wanted != nil && !self.camSession.isRunning { self.camSession.startRunning() }
+                return
+            }
+            self.camSession.beginConfiguration()
+            if let input = self.camInput {
+                self.camSession.removeInput(input)
+                self.camInput = nil
+            }
+            if let device = wanted, let input = try? AVCaptureDeviceInput(device: device), self.camSession.canAddInput(input) {
+                // 720p is plenty for a tile and keeps compositing cheap.
+                if self.camSession.canSetSessionPreset(.hd1280x720) { self.camSession.sessionPreset = .hd1280x720 }
+                self.camSession.addInput(input)
+                self.camInput = input
+                if !self.camSession.outputs.contains(self.camOutput), self.camSession.canAddOutput(self.camOutput) {
+                    self.camSession.addOutput(self.camOutput)
+                }
+            }
+            self.camSession.commitConfiguration()
+            if self.camInput != nil {
+                if !self.camSession.isRunning { self.camSession.startRunning() }
+            } else {
+                if self.camSession.isRunning { self.camSession.stopRunning() }
+                self.camQueue.async { self.onWebcamFrame?(nil) }
+            }
+        }
+    }
+
     // MARK: - Sample buffer delegates
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         if output === videoOutput {
             if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) { onVideoFrame?(pixelBuffer) }
+        } else if output === camOutput {
+            if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) { onWebcamFrame?(pixelBuffer) }
         } else if output === audioOutput {
             if let hint = AudioFormatHint(sampleBuffer) {
                 hintLock.lock(); _deviceAudioHint = hint; hintLock.unlock()

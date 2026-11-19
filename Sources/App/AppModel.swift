@@ -104,6 +104,7 @@ final class AppModel: ObservableObject {
     private var observers: [NSObjectProtocol] = []
     private var bootstrapped = false
     private var hotKeysRegistered: Bool?
+    private var appliedWebcam: String?
 
     // MARK: - Lifecycle
 
@@ -117,6 +118,7 @@ final class AppModel: ObservableObject {
         capture.onVideoFrame = { @Sendable pb in loop.updateDeviceBuffer(pb) }
         capture.onDeviceAudio = { @Sendable sb in loop.appendDeviceAudio(sb) }
         capture.onMicAudio = { @Sendable sb in loop.appendMicAudio(sb) }
+        capture.onWebcamFrame = { @Sendable pb in loop.updateWebcamBuffer(pb) }
         renderLoop.setContentSizeHandler { [weak self] size in
             MainActor.assumeIsolated { self?.contentSizeChanged(size) }
         }
@@ -146,8 +148,10 @@ final class AppModel: ObservableObject {
         if outputDetached { outputWindow.show() }
         syncPresenterOptions()
         applyAudioSettings()
+        applyWebcamSettings()
         registerHotKeys()
         vcamInstaller.refreshStatus()
+
 
         AVCaptureDevice.requestAccess(for: .video) { granted in
             Task { @MainActor in
@@ -232,6 +236,7 @@ final class AppModel: ObservableObject {
     private func settingsChanged() {
         pushRenderConfig()
         applyAudioSettings()
+        applyWebcamSettings()
         renderLoop.start(fps: settings.frameRate)
         if hotKeysRegistered != settings.globalHotKeys { registerHotKeys() }
     }
@@ -341,6 +346,32 @@ final class AppModel: ObservableObject {
     }
 
     // MARK: - Audio
+
+    /// Runs the presenter webcam only while the selected profile shows it.
+    private func applyWebcamSettings() {
+        let wanted = profiles.selected.webcam.enabled
+        let key = wanted ? "on:\(settings.webcamID)" : "off"
+        guard key != appliedWebcam else { return }
+        appliedWebcam = key
+        guard wanted else {
+            capture.setWebcam(enabled: false, uniqueID: "")
+            return
+        }
+        let id = settings.webcamID
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            capture.setWebcam(enabled: true, uniqueID: id)
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { ok in
+                Task { @MainActor in
+                    if ok { self.capture.setWebcam(enabled: true, uniqueID: id) }
+                    else { self.banner = "Camera access was denied." }
+                }
+            }
+        default:
+            banner = "Camera access is off. Enable it in System Settings › Privacy & Security › Camera."
+        }
+    }
 
     private func applyAudioSettings() {
         capture.setMonitor(enabled: settings.playDeviceAudio, volume: Float(settings.monitorVolume))

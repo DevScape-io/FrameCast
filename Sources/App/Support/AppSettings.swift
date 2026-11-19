@@ -117,6 +117,12 @@ final class AppSettings: ObservableObject {
     @Published var recordMicrophone: Bool { didSet { Self.save(recordMicrophone, "recordMicrophone") } }
     @Published var microphoneID: String { didSet { Self.save(microphoneID, "microphoneID") } }
 
+    // Cameras
+    /// Webcam shown on the canvas; empty = system default.
+    @Published var webcamID: String { didSet { Self.save(webcamID, "webcamID") } }
+    /// The virtual camera was on when FrameCast last ran, so turn it back on at launch.
+    @Published var virtualCameraWanted: Bool { didSet { Self.save(virtualCameraWanted, "virtualCameraWanted") } }
+
     // Presenter
     @Published var annotationFadeSeconds: Double { didSet { Self.save(annotationFadeSeconds, "annotationFadeSeconds") } }
 
@@ -161,6 +167,8 @@ final class AppSettings: ObservableObject {
         recordDeviceAudio = bool("recordDeviceAudio", true)
         recordMicrophone = bool("recordMicrophone", false)
         microphoneID = str("microphoneID", "")
+        webcamID = str("webcamID", "")
+        virtualCameraWanted = bool("virtualCameraWanted", false)
 
         annotationFadeSeconds = dbl("annotationFadeSeconds", 0)
 

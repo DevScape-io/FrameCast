@@ -31,6 +31,7 @@ final class RenderLoop: @unchecked Sendable {
     private var config = RenderConfig()
     private var presenter = PresenterSnapshot()
     private var latestBuffer: CVPixelBuffer?
+    private var latestWebcam: CVPixelBuffer?
     private var reportedSize: CGSize?
     private var recorder: Recorder?
     private var virtualCamera: VirtualCameraSink?
@@ -43,6 +44,7 @@ final class RenderLoop: @unchecked Sendable {
     private let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
     private var imageSource: CVPixelBuffer?
     private var deviceImage: CGImage?
+    private var webcamSource: CVPixelBuffer?
     private var pools: [String: CVPixelBufferPool] = [:]
 
     // MARK: Control (main thread)
@@ -121,6 +123,10 @@ final class RenderLoop: @unchecked Sendable {
         if changed { DispatchQueue.main.async { handler?(size) } }
     }
 
+    func updateWebcamBuffer(_ pb: CVPixelBuffer?) {
+        lock.lock(); latestWebcam = pb; lock.unlock()
+    }
+
     func appendDeviceAudio(_ sb: CMSampleBuffer) {
         lock.lock(); let r = recorder; lock.unlock()
         r?.appendDeviceAudio(sb)
@@ -150,13 +156,19 @@ final class RenderLoop: @unchecked Sendable {
             }
         }
         presenter.clicks.removeAll { now - $0.time > 0.6 }
-        let cfg = config, pres = presenter, pb = latestBuffer
+        let cfg = config, pres = presenter, pb = latestBuffer, cam = latestWebcam
         let rec = recorder, vcam = virtualCamera, previews = Array(previewHandlers.values)
         let shots = screenshotRequests
         screenshotRequests.removeAll()
         lock.unlock()
 
         autoreleasepool {
+            if cam !== webcamSource {
+                var img: CGImage?
+                if let cam { VTCreateCGImageFromCVPixelBuffer(cam, options: nil, imageOut: &img) }
+                compositor.webcamImage = img
+                webcamSource = cam
+            }
             var device: DeviceInput?
             if let pb {
                 if pb !== imageSource {
