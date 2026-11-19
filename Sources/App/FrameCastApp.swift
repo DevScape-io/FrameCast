@@ -17,6 +17,13 @@ struct FrameCastApp: App {
         .defaultSize(width: 1280, height: 860)
         .commands { FrameCastCommands(model: model, presenter: model.presenter, settings: model.settings) }
 
+        Window("About FrameCast", id: AboutView.windowID) {
+            AboutView()
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+        .commandsRemoved()   // opened from the app menu's About item, not the Window menu
+
         Settings {
             SettingsView()
                 .environmentObject(model)
@@ -33,8 +40,17 @@ struct FrameCastCommands: Commands {
     @ObservedObject var model: AppModel
     @ObservedObject var presenter: PresenterModel
     @ObservedObject var settings: AppSettings
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button("About FrameCast") { openWindow(id: AboutView.windowID) }
+        }
+        CommandGroup(replacing: .help) {
+            Button(SupportUs.menuTitle) { SupportUs.open() }
+            Divider()
+            Button("About FrameCast") { openWindow(id: AboutView.windowID) }
+        }
         CommandMenu("Capture") {
             Button(model.isRecording ? "Stop Recording" : "Start Recording") { model.toggleRecording() }
                 .keyboardShortcut("r", modifiers: [.command, .shift])

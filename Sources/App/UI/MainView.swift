@@ -34,6 +34,14 @@ struct MainView: View {
             }
         }
         .frame(minWidth: model.outputDetached ? 380 : 900, minHeight: 600)
+        .overlay(alignment: .bottomLeading) {
+            if model.showSupportNudge {
+                SupportNudge()
+                    .padding(16)
+                    .padding(.bottom, 24)   // clear of the status strip
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
         .toolbar { toolbarContent }
         .translucentWindow()
         .background(WindowAccessor { window in

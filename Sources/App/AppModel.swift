@@ -55,6 +55,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var canvasSize: CGSize = .zero
     @Published var alwaysOnTop = false
     @Published var showInspector = true
+    /// The one-time "Enjoying FrameCast?" prompt is due.
+    @Published var showSupportNudge = false
     /// When true the live output lives in its own window and the main window holds only the controls.
     @Published var outputDetached = UserDefaults.standard.bool(forKey: "outputDetached") {
         didSet {
@@ -141,6 +143,13 @@ final class AppModel: ObservableObject {
             observers.append(nc.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.refreshDevices() }
             })
+        }
+
+        if SupportUs.registerLaunchAndCheck() {
+            // Give the window a moment to settle; the prompt shouldn't be the first thing seen.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
+                withAnimation { self?.showSupportNudge = true }
+            }
         }
 
         renderLoop.start(fps: settings.frameRate)
