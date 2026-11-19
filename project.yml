@@ -87,6 +87,9 @@ targets:
       path: Generated/CameraExtension-Info.plist
       properties:
         CFBundleDisplayName: FrameCast Camera
+        # Required: macOS uses this to recognize the bundle as a system extension. Without it
+        # installation fails with "does not appear to belong to any extension categories".
+        CFBundlePackageType: $(PRODUCT_BUNDLE_PACKAGE_TYPE)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
