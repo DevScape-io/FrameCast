@@ -203,6 +203,19 @@ struct NameplateSettings: Codable, Equatable {
     var textColor = RGBAColor.white
 }
 
+/// How much of the room available to it the device fills, set separately for each way up.
+/// A phone on a wide canvas is small upright and large on its side, so one value can't suit both.
+struct DeviceSizeSettings: Codable, Equatable {
+    static let range = 0.3...1.0
+    var portrait = 1.0
+    var landscape = 1.0
+
+    func fraction(landscape isLandscape: Bool) -> CGFloat {
+        let value = isLandscape ? landscape : portrait
+        return CGFloat(min(max(value, Self.range.lowerBound), Self.range.upperBound))
+    }
+}
+
 struct OverlayProfile: Codable, Identifiable, Equatable {
     var id = UUID()
     var name = "Untitled"
@@ -215,6 +228,7 @@ struct OverlayProfile: Codable, Identifiable, Equatable {
     // Added later: stored as optionals so profiles saved by older versions still load.
     private var webcamStore: WebcamSettings?
     private var nameplateStore: NameplateSettings?
+    private var deviceSizeStore: DeviceSizeSettings?
 
     var webcam: WebcamSettings {
         get { webcamStore ?? WebcamSettings() }
@@ -223,6 +237,11 @@ struct OverlayProfile: Codable, Identifiable, Equatable {
     var nameplate: NameplateSettings {
         get { nameplateStore ?? NameplateSettings() }
         set { nameplateStore = newValue }
+    }
+
+    var deviceSize: DeviceSizeSettings {
+        get { deviceSizeStore ?? DeviceSizeSettings() }
+        set { deviceSizeStore = newValue }
     }
 
     static var defaults: [OverlayProfile] {

@@ -54,6 +54,7 @@ struct InspectorView: View {
                     backgroundSection(p.background)
                 case .device:
                     frameSection
+                    deviceSizeSection(p.deviceSize)
                     statusBarSection(p.statusBar)
                     redactionSection(p.redactions)
                 case .camera:
@@ -409,6 +410,18 @@ struct InspectorView: View {
         }
     }
 
+    private func deviceSizeSection(_ size: Binding<DeviceSizeSettings>) -> some View {
+        Section {
+            percentSlider("Portrait", size.portrait, DeviceSizeSettings.range)
+            percentSlider("Landscape", size.landscape, DeviceSizeSettings.range)
+        } header: {
+            Text("Size on Canvas").font(.headline)
+        } footer: {
+            Text("How much of the space inside the padding the device fills when it is upright and when it is on its side.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
     private func statusBarSection(_ sb: Binding<StatusBarSettings>) -> some View {
         Section {
             if sb.wrappedValue.enabled {
@@ -463,6 +476,17 @@ struct InspectorView: View {
             }
         } header: {
             Text("Presenter").font(.headline)
+        }
+    }
+
+    private func percentSlider(_ title: String, _ value: Binding<Double>, _ range: ClosedRange<Double>) -> some View {
+        HStack {
+            Text(title)
+            Slider(value: value, in: range)
+            Text("\(Int((value.wrappedValue * 100).rounded()))%")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 44, alignment: .trailing)
         }
     }
 

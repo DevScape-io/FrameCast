@@ -215,7 +215,7 @@ private extension InspectorTab {
     var welcomeDetail: String {
         switch self {
         case .canvas: return "Canvas size and background."
-        case .device: return "Frame color, a clean status bar, and redactions."
+        case .device: return "Frame color, size on the canvas, a clean status bar, and redactions."
         case .camera: return "Your webcam and a nameplate with your name, title and company."
         case .branding: return "Watermark, header and confidentiality footer."
         case .presenter: return "Cursor highlight and pen options."

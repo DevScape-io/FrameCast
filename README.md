@@ -8,6 +8,7 @@ FrameCast is a native macOS app (Swift and SwiftUI, macOS 14 or later) that mirr
 |---|---|
 | **Capture** | USB capture of iPhone and iPad with no drivers, using the same CoreMediaIO route as QuickTime. It reconnects automatically when you plug a device in or out. |
 | **Device frame** | The frame can be chosen three ways: **Auto** reads the exact model over USB with libimobiledevice, or falls back to matching the screen resolution. You can also pick a built-in frame manually, or set a default and per-device choices in Settings. Frames rotate with the device. |
+| **Device size** | How much of the canvas the device fills, set separately for portrait and landscape and saved with the profile. |
 | **Frame artwork** | Built-in frames are drawn in code for 16 iPhone and iPad models, with Dynamic Island, notch, camera and Home button details and three colors. You can also import Apple's official bezel PNGs. FrameCast finds the screen area automatically and links each frame to its model. |
 | **Recording** | HEVC, H.264 or ProRes in .mov or .mp4, at 24, 30 or 60 fps. The device audio and the Mac microphone are saved as separate tracks. There is a 3-2-1 countdown and an optional trim window after recording. |
 | **Screenshots** | PNG at full canvas resolution. Screenshots can also be copied to the clipboard automatically. |

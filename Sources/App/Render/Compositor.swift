@@ -310,6 +310,7 @@ final class Compositor {
         let c = content ?? placeholderContentSize(config)
         let g = geometry(content: c, config: config)
         let s = min(avail.width / g.bounds.width, avail.height / g.bounds.height)
+            * p.deviceSize.fraction(landscape: c.width > c.height)
         let dw = g.bounds.width * s, dh = g.bounds.height * s
         L.deviceRect = CGRect(x: avail.midX - dw / 2, y: avail.midY - dh / 2, width: dw, height: dh)
         L.screenRect = CGRect(x: L.deviceRect.minX + g.screen.minX * s, y: L.deviceRect.minY + g.screen.minY * s,
