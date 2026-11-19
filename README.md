@@ -99,6 +99,8 @@ iPhone/iPad ─USB─► CoreMediaIO (screen-capture devices on) ─► AVCaptur
 | `Sources/App/UI/About` | About window and the Support Us link |
 | `Sources/App/UI/Shared` | Controls and helpers used by more than one window |
 | `Sources/CameraExtension` | The camera system extension (source and sink streams) |
+| `Sources/App/Assets.xcassets` | The app icon |
+| `Design/AppIcon` | Vector and 1024 px masters for the app icon |
 | `Generated/` | Info.plists and entitlements written by XcodeGen; not checked in |
 
 `FrameCast.xcodeproj` is generated too. After adding, moving or removing files, run `./bootstrap.sh` (or `xcodegen generate`) to rebuild it.

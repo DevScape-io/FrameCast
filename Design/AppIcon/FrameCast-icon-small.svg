@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FDBA74"/>
+      <stop offset="1" stop-color="#EA580C"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="10"/>
+      <feOffset dy="10"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.3"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  </g>
+  <rect x="200" y="270" width="624" height="484" rx="56" fill="#FFFFFF"/>
+  <rect x="232" y="344" width="360" height="378" rx="28" fill="#FFEDD5"/>
+  <rect x="347" y="393" width="130" height="280" rx="28" fill="#431407"/>
+  <rect x="359" y="405" width="106" height="256" rx="18" fill="#FB923C"/>
+  <rect x="390" y="415" width="44" height="12" rx="6" fill="#431407"/>
+  <rect x="612" y="344" width="180" height="179" rx="28" fill="#FED7AA"/>
+  <circle cx="702" cy="420" r="28" fill="#9A3412"/>
+  <path d="M654 505 C654 466 750 466 750 505 Z" fill="#9A3412"/>
+  <rect x="612" y="543" width="180" height="179" rx="28" fill="#FED7AA"/>
+  <circle cx="702" cy="619" r="28" fill="#9A3412"/>
+  <path d="M654 704 C654 665 750 665 750 704 Z" fill="#9A3412"/>
+</svg>
