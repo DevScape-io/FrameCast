@@ -1043,12 +1043,7 @@ final class Compositor {
         let c = pt(cursor)
         switch p.tool {
         case .pointer where p.highlightCursor:
-            let r = H * 0.022
-            ctx.setFillColor(RGBAColor.yellow.withAlpha(0.35).cgColor)
-            ctx.fillEllipse(in: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2))
-            ctx.setStrokeColor(RGBAColor.yellow.withAlpha(0.7).cgColor)
-            ctx.setLineWidth(max(1, H * 0.002))
-            ctx.strokeEllipse(in: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2))
+            Self.drawPointerHighlight(ctx, size: size, cursor: cursor)
         case .spotlight:
             let r = p.spotlightRadius * H
             let path = CGMutablePath()
@@ -1082,6 +1077,22 @@ final class Compositor {
         default:
             break
         }
+    }
+
+    /// Pointer highlight radius as a fraction of canvas height. The preview draws its own copy
+    /// of the highlight as a layer (so it tracks the mouse instantly) and must match this.
+    static let pointerHighlightRadius: CGFloat = 0.022
+
+    /// The yellow pointer highlight. `ctx` is flipped; `cursor` is normalized to the canvas.
+    static func drawPointerHighlight(_ ctx: CGContext, size: CGSize, cursor: CGPoint) {
+        let H = size.height
+        let c = CGPoint(x: cursor.x * size.width, y: cursor.y * H)
+        let r = H * pointerHighlightRadius
+        ctx.setFillColor(RGBAColor.yellow.withAlpha(0.35).cgColor)
+        ctx.fillEllipse(in: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2))
+        ctx.setStrokeColor(RGBAColor.yellow.withAlpha(0.7).cgColor)
+        ctx.setLineWidth(max(1, H * 0.002))
+        ctx.strokeEllipse(in: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2))
     }
 
     // MARK: Preview-only extras (never recorded)

@@ -28,6 +28,10 @@ final class PreviewNSView: NSView {
     private var crop: CGRect?
     private let flashLayer = CALayer()
     private let flashMask = CALayer()
+    /// The pointer highlight, drawn here rather than in the rendered frame so it follows the
+    /// mouse immediately instead of one render later.
+    private let pointerLayer = CAShapeLayer()
+    private var pointerLocation: CGPoint?
 
     /// Which render this view shows. Set before the view is added to a window.
     var kind: PreviewKind = .canvas
@@ -52,6 +56,10 @@ final class PreviewNSView: NSView {
         flashMask.contentsGravity = .resize
         flashLayer.mask = flashMask
         layer?.addSublayer(flashLayer)
+        pointerLayer.fillColor = RGBAColor.yellow.withAlpha(0.35).cgColor
+        pointerLayer.strokeColor = RGBAColor.yellow.withAlpha(0.7).cgColor
+        pointerLayer.isHidden = true
+        layer?.addSublayer(pointerLayer)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
@@ -66,6 +74,10 @@ final class PreviewNSView: NSView {
                 guard let self else { return }
                 self.window?.invalidateCursorRects(for: self)
             }
+            .store(in: &cancellables)
+        model.presenter.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updatePointerLayer() }
             .store(in: &cancellables)
         model.$flashToken
             .dropFirst()
@@ -212,11 +224,40 @@ final class PreviewNSView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         let p = canvasPoint(event)
+        trackPointer(event)
         mutate { $0.cursor = p }
     }
 
     override func mouseExited(with event: NSEvent) {
+        pointerLocation = nil
+        updatePointerLayer()
         mutate { $0.cursor = nil }
+    }
+
+    private func trackPointer(_ event: NSEvent) {
+        pointerLocation = convert(event.locationInWindow, from: nil)
+        updatePointerLayer()
+    }
+
+    /// Moves the highlight to the mouse. Sized to match what the compositor stamps into
+    /// recordings (a fraction of the canvas height).
+    private func updatePointerLayer() {
+        let r = imageRect
+        let shownHeight = crop?.height ?? canvasLayout.canvasSize.height
+        let visible = tool == .pointer && (model?.presenter.highlightCursor ?? false)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        if visible, let p = pointerLocation, r.contains(p), shownHeight > 0 {
+            let scale = r.height / shownHeight
+            let radius = Compositor.pointerHighlightRadius * canvasLayout.canvasSize.height * scale
+            pointerLayer.path = CGPath(ellipseIn: CGRect(x: p.x - radius, y: p.y - radius, width: radius * 2, height: radius * 2),
+                                       transform: nil)
+            pointerLayer.lineWidth = max(1, 0.002 * canvasLayout.canvasSize.height * scale)
+            pointerLayer.isHidden = false
+        } else {
+            pointerLayer.isHidden = true
+        }
+        CATransaction.commit()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -244,6 +285,7 @@ final class PreviewNSView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        trackPointer(event)
         guard let p = canvasPoint(event, clamp: true) else { return }
         switch tool {
         case .pen, .highlighter:

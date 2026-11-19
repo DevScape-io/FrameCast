@@ -185,12 +185,16 @@ final class RenderLoop: @unchecked Sendable {
 
             let size = rec?.size ?? Compositor.canvasSize(content: device?.size, config: cfg)
             let date = Date()
-            func render(_ size: CGSize, overlays: Bool, image: Bool) -> Rendered? {
+            func render(_ size: CGSize, overlays: Bool, image: Bool, pointerAfterImage: Bool = false) -> Rendered? {
                 renderBuffer(size: size, device: device, cfg: cfg, pres: pres, overlays: overlays,
-                             now: now, date: date, wantImage: image)
+                             now: now, date: date, wantImage: image, pointerAfterImage: pointerAfterImage)
             }
 
-            guard let main = render(size, overlays: true, image: true) else { return }
+            // The preview draws the pointer highlight itself, as a layer that follows the mouse
+            // with no render-loop delay. So the preview image leaves it out, and it is stamped
+            // onto the buffer afterwards for the recorder and the virtual camera.
+            let pointerShown = pres.tool == .pointer && pres.highlightCursor && pres.cursor != nil
+            guard let main = render(size, overlays: true, image: true, pointerAfterImage: true) else { return }
 
             let canvasPreviews = previews.filter { $0.kind == .canvas }.map(\.handler)
             let devicePreviews = previews.filter { $0.kind == .deviceOnly }.map(\.handler)
@@ -218,7 +222,8 @@ final class RenderLoop: @unchecked Sendable {
             }
 
             for (overlays, done) in shots {
-                let img = overlays ? main.image : render(size, overlays: false, image: true)?.image
+                // main.image has no pointer highlight, so re-render when one should be in the shot.
+                let img = overlays && !pointerShown ? main.image : render(size, overlays: overlays, image: true)?.image
                 DispatchQueue.main.async { done(img) }
             }
 
@@ -248,8 +253,10 @@ final class RenderLoop: @unchecked Sendable {
         else { return nil }
         ctx.translateBy(x: 0, y: CGFloat(h))
         ctx.scaleBy(x: 1, y: -1)
+        var drawn = pres
+        drawn.highlightCursor = false   // the preview layer draws the pointer highlight
         let layout = compositor.renderDeviceOnly(in: ctx, outputSize: CGSize(width: w, height: h), canvas: canvas,
-                                                 device: device, config: cfg, presenter: pres,
+                                                 device: device, config: cfg, presenter: drawn,
                                                  includeOverlays: true, now: now, date: date)
         guard var image = ctx.makeImage() else { return nil }
         if Compositor.needsPreviewExtras(pres) {
@@ -277,7 +284,8 @@ final class RenderLoop: @unchecked Sendable {
     }
 
     private func renderBuffer(size: CGSize, device: DeviceInput?, cfg: RenderConfig, pres: PresenterSnapshot,
-                              overlays: Bool, now: CFTimeInterval, date: Date, wantImage: Bool) -> Rendered? {
+                              overlays: Bool, now: CFTimeInterval, date: Date, wantImage: Bool,
+                              pointerAfterImage: Bool = false) -> Rendered? {
         guard size.width >= 2, size.height >= 2, let pool = pool(for: size) else { return nil }
         var out: CVPixelBuffer?
         CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &out)
@@ -293,9 +301,18 @@ final class RenderLoop: @unchecked Sendable {
         else { return nil }
         ctx.translateBy(x: 0, y: CGFloat(h))
         ctx.scaleBy(x: 1, y: -1)
+        var drawn = pres
+        if pointerAfterImage { drawn.highlightCursor = false }
         let layout = compositor.render(in: ctx, size: CGSize(width: w, height: h), device: device, config: cfg,
-                                       presenter: pres, includeOverlays: overlays, now: now, date: date)
+                                       presenter: drawn, includeOverlays: overlays, now: now, date: date)
         ctx.flush()
+        defer {
+            // Runs after the preview image has been copied out below.
+            if pointerAfterImage, pres.tool == .pointer, pres.highlightCursor, let cursor = pres.cursor {
+                Compositor.drawPointerHighlight(ctx, size: CGSize(width: w, height: h), cursor: cursor)
+                ctx.flush()
+            }
+        }
 
         var image: CGImage?
         if wantImage {
