@@ -147,6 +147,9 @@ final class RenderLoop: @unchecked Sendable {
 
     private func tick() {
         let now = CACurrentMediaTime()
+        // Stamp the frame before rendering it. Stamping afterwards adds however long this
+        // frame took to draw, which varies, so recordings played back unevenly.
+        let frameTime = CMClockGetTime(CMClockGetHostTimeClock())
         lock.lock()
         let fade = config.annotationFade
         if fade > 0 {
@@ -213,11 +216,10 @@ final class RenderLoop: @unchecked Sendable {
             }
 
             if let rec {
-                let time = CMClockGetTime(CMClockGetHostTimeClock())
                 if cfg.overlaysInRecordings {
-                    rec.appendVideo(main.buffer, at: time)
+                    rec.appendVideo(main.buffer, at: frameTime)
                 } else if let clean = render(size, overlays: false, image: false) {
-                    rec.appendVideo(clean.buffer, at: time)
+                    rec.appendVideo(clean.buffer, at: frameTime)
                 }
             }
 
