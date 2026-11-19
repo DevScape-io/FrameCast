@@ -101,3 +101,11 @@ iPhone/iPad ─USB─► CoreMediaIO (screen-capture devices on) ─► AVCaptur
 - Only one app can capture a device at a time, so quit QuickTime first.
 - The clean status bar is an approximation drawn over the real one. Check it before using a capture in public marketing.
 - The canvas size is fixed for each recording. If you rotate the device while recording, it is letterboxed inside the same canvas.
+
+## License
+
+FrameCast is licensed under the [Apache License 2.0 with the Commons Clause](LICENSE).
+You may use, copy, modify and share it for free. You may not sell it, or sell a product or
+service whose value comes substantially from it.
+
+Copyright © 2026 DevScape.io LLC.

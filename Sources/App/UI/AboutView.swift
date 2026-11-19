@@ -58,6 +58,8 @@ enum SupportUs {
 struct AboutView: View {
     static let windowID = "about"
 
+    @State private var showLicense = false
+
     private var build: String {
         Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
     }
@@ -89,6 +91,15 @@ struct AboutView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 6) {
+                    Text("Apache License 2.0 with Commons Clause")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("View License") { showLicense = true }
+                        .buttonStyle(.link)
+                        .font(.caption)
+                }
+                .padding(.top, 2)
             }
             .padding(12)
             .frame(maxWidth: .infinity)
@@ -108,7 +119,7 @@ struct AboutView: View {
             Divider()
 
             VStack(spacing: 2) {
-                Text("Copyright © 2026 DevScape.io LLC. All rights reserved.")
+                Text("Copyright © 2026 DevScape.io LLC")
                 Link("devscape.io", destination: URL(string: "https://devscape.io")!)
             }
             .font(.caption)
@@ -119,6 +130,41 @@ struct AboutView: View {
         .padding(.bottom, 22)
         .frame(width: 380)
         .translucentWindow()
+        .sheet(isPresented: $showLicense) { LicenseView() }
+    }
+}
+
+/// The full license text, read from the LICENSE file bundled with the app.
+struct LicenseView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    private static let text: String = {
+        guard let url = Bundle.main.url(forResource: "LICENSE", withExtension: nil),
+              let text = try? String(contentsOf: url, encoding: .utf8) else {
+            return "FrameCast is licensed under the Apache License, Version 2.0, with the Commons Clause License Condition v1.0.\n\nThe license file is missing from this build. See https://www.apache.org/licenses/LICENSE-2.0 and https://commonsclause.com."
+        }
+        return text
+    }()
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text("License").font(.headline).padding(.vertical, 12)
+            Divider()
+            ScrollView {
+                Text(Self.text)
+                    .font(.system(size: 11, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+            }
+            Divider()
+            HStack {
+                Spacer()
+                Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
+            }
+            .padding(12)
+        }
+        .frame(width: 620, height: 520)
     }
 }
 

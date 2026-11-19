@@ -27,6 +27,8 @@ targets:
     platform: macOS
     sources:
       - path: Sources/App
+      - path: LICENSE          # shown in the About window
+        buildPhase: resources
     info:
       path: Sources/App/Info.plist
       properties:
@@ -34,7 +36,7 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.productivity
-        NSHumanReadableCopyright: Copyright © 2026 DevScape.io LLC. All rights reserved.
+        NSHumanReadableCopyright: Copyright © 2026 DevScape.io LLC. Apache License 2.0 with Commons Clause.
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
         NSCameraUsageDescription: FrameCast captures the screen of iPhones and iPads connected over USB.
         NSMicrophoneUsageDescription: FrameCast can record microphone narration alongside your device capture.
