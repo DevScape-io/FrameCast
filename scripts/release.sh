@@ -7,7 +7,8 @@
 #   scripts/release.sh 1.2.0 --local    sign and notarize, but don't publish
 #   scripts/release.sh --dry-run        unsigned test of the build and packaging steps
 #
-# Version defaults to MARKETING_VERSION in project.yml. The build number is the commit count.
+# Version defaults to MARKETING_VERSION in project.yml. The build number is the commit count,
+# or BUILD_NUMBER=<n> if you set it.
 #
 # One-time setup for notarization (stores an app-specific password in your keychain):
 #   xcrun notarytool store-credentials "FrameCast-notary" \
@@ -28,7 +29,7 @@ for arg in "$@"; do
     --draft)   DRAFT=1 ;;
     --local)   LOCAL=1 ;;
     --dry-run) DRY=1; LOCAL=1 ;;
-    -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*)        echo "Unknown option: $arg" >&2; exit 2 ;;
     *)         VERSION="$arg" ;;
   esac
@@ -37,7 +38,7 @@ done
 spec_value() { sed -n "s/^ *$1: *\"\{0,1\}\([^\"]*\)\"\{0,1\} *$/\1/p" "$SPEC" | head -1; }
 [[ -n "$VERSION" ]] || VERSION="$(spec_value MARKETING_VERSION)"
 TEAM_ID="$(spec_value DEVELOPMENT_TEAM)"
-BUILD="$(git rev-list --count HEAD)"
+BUILD="${BUILD_NUMBER:-$(git rev-list --count HEAD)}"
 TAG="v$VERSION"
 
 OUT="build/release"

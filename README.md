@@ -19,8 +19,16 @@ FrameCast is a native macOS app (Swift and SwiftUI, macOS 14 or later) that mirr
 | **Redaction** | Blur, pixelate or solid boxes that stick to the device screen. Drag to add a box and right-click to remove it. |
 | **Clean status bar** | Covers the real status bar with 9:41, full battery and Wi-Fi, and matches the app's color automatically. |
 | **Presenter tools** | Pen, highlighter, spotlight, zoom lens, and cursor and click highlights. Drawings can fade automatically. |
-| **Virtual camera** | A CoreMediaIO camera extension named **FrameCast Camera**, which you can select in Zoom, Teams, Meet or OBS. |
+| **Presenter webcam** | Your Mac's camera on the canvas beside the device, with an optional nameplate. Both are saved with the profile. |
+| **Virtual camera** | A CoreMediaIO camera extension named **FrameCast Camera**, which you can select in Zoom, Teams, Meet or OBS. Once installed, FrameCast sends to it automatically whenever the app is open. |
+| **Separate output window** | Moves the output into its own window to share in a call, as the full canvas or as **Frame Only** (just the device floating on the desktop). The controls float in a strip beside it, out of the shared picture. |
 | **Quality of life** | Global hotkeys, a float-on-top window, a canvas background (solid, gradient or image), and canvas sizes such as 1080p, 4K, square, vertical, or fit to the device. |
+
+## Install
+
+Download the latest `FrameCast-x.y.z.dmg` from [Releases](https://github.com/DevScape-io/FrameCast/releases), open it and drag **FrameCast** into **Applications**. The app is signed and notarized by DevScape.io LLC and needs macOS 14 or later. Open it from Applications; the virtual camera can only be installed from there.
+
+To build it yourself instead, read on.
 
 ## Build
 
@@ -43,6 +51,8 @@ cd FrameCast
 2. Allow **Camera** access when macOS asks. iOS screen capture is covered by the camera permission.
 3. The device appears in the toolbar after a second or two. If it doesn't, choose **Capture › Refresh Devices**, then unplug the device and plug it back in.
 
+A short welcome walkthrough opens on first launch and names each group of controls. You can reopen it from **Help › Welcome to FrameCast…**.
+
 ## Using Apple's official frames
 
 1. Download **Product Bezels** from [Apple Design Resources](https://developer.apple.com/design/resources/#product-bezels).
@@ -53,10 +63,11 @@ Apple's bezels are licensed for showing your app in marketing materials. Keep th
 
 ## Virtual camera setup
 
-1. Build the full project (not `--no-vcam`) with your team selected.
-2. In Xcode, choose **Product › Show Build Folder in Finder**, then copy `FrameCast.app` into **/Applications** and open it from there. macOS only installs camera extensions from apps in /Applications.
-3. Go to **Settings › Virtual Camera** and click **Install**, then approve it in **System Settings › General › Login Items & Extensions › Camera Extensions**.
-4. Turn on the virtual camera from FrameCast's toolbar, then choose **FrameCast Camera** in your video call app. When FrameCast isn't sending frames, the camera shows a "waiting" card.
+1. Make sure `FrameCast.app` is in **/Applications** and open it from there. macOS only installs camera extensions from apps in /Applications. If you built it yourself, build the full project (not `--no-vcam`) with your team selected, choose **Product › Show Build Folder in Finder** in Xcode, and copy the app across.
+2. Go to **Settings › Virtual Camera** and click **Install**, then approve it in **System Settings › General › Login Items & Extensions › Camera Extensions**.
+3. Choose **FrameCast Camera** in your video call app. FrameCast starts sending to it by itself whenever the app is open.
+
+To stop or resume sending, use the **In Calls** switch in **Settings › Virtual Camera**, **Capture › Virtual Camera**, or the video button beside the output. While FrameCast isn't sending, the camera shows a "waiting" card.
 
 After you rebuild, install again to replace the old extension.
 
@@ -69,6 +80,7 @@ After you rebuild, install again to replace the old extension.
 | ⌃⌥⌘D | Toggle the pen (system-wide) |
 | ⌃⌥⌘K / ⌘K | Clear drawings |
 | ⌘1…⌘6 | Pointer, Pen, Highlighter, Spotlight, Zoom, Redact |
+| ⌥⌘O | Move the output into a separate window, or bring it back |
 | ⌥⌘I | Show or hide the inspector |
 
 ## How it works
@@ -125,7 +137,7 @@ scripts/release.sh 1.2.0 --local    # sign and notarize, but don't publish
 scripts/release.sh --dry-run        # unsigned test of the build and packaging steps
 ```
 
-Leave the version off to use `MARKETING_VERSION` from `project.yml`. The build number is the commit count. Output goes to `build/release/` (not checked in), with a `.sha256` file beside the DMG.
+Leave the version off to use `MARKETING_VERSION` from `project.yml`. The build number is the commit count unless you set one, as in `BUILD_NUMBER=1 scripts/release.sh 1.0.0`. Output goes to `build/release/` (not checked in), with a `.sha256` file beside the DMG.
 
 Before a real release:
 
