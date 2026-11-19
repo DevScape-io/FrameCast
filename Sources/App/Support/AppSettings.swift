@@ -120,7 +120,8 @@ final class AppSettings: ObservableObject {
     // Cameras
     /// Webcam shown on the canvas; empty = system default.
     @Published var webcamID: String { didSet { Self.save(webcamID, "webcamID") } }
-    /// The virtual camera was on when FrameCast last ran, so turn it back on at launch.
+    /// Feed the virtual camera whenever it's installed. On by default: once someone has
+    /// installed the camera, they expect picking it in a call to just work.
     @Published var virtualCameraWanted: Bool { didSet { Self.save(virtualCameraWanted, "virtualCameraWanted") } }
 
     // Presenter
@@ -168,7 +169,7 @@ final class AppSettings: ObservableObject {
         recordMicrophone = bool("recordMicrophone", false)
         microphoneID = str("microphoneID", "")
         webcamID = str("webcamID", "")
-        virtualCameraWanted = bool("virtualCameraWanted", false)
+        virtualCameraWanted = bool("virtualCameraWanted", true)
 
         annotationFadeSeconds = dbl("annotationFadeSeconds", 0)
 

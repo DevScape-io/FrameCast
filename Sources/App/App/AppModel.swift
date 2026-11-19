@@ -161,7 +161,8 @@ final class AppModel: ObservableObject {
         registerHotKeys()
         vcamInstaller.refreshStatus()
 
-        // Bring the virtual camera back if it was on last time, including right after it's installed.
+        // Start feeding the virtual camera at launch if it's installed (unless it was switched
+        // off), and as soon as it finishes installing.
         if settings.virtualCameraWanted { setVirtualCamera(true, quiet: true) }
         vcamInstaller.$isInstalled
             .removeDuplicates()
@@ -539,7 +540,9 @@ final class AppModel: ObservableObject {
                 virtualCameraOn = false
                 guard !quiet else { return }
                 vcamInstaller.refreshStatus()
-                banner = "The virtual camera isn’t installed yet — open Settings › Virtual Camera."
+                banner = vcamInstaller.isInstalled
+                    ? "Couldn’t connect to the virtual camera. Quit the call app and FrameCast, then open FrameCast first."
+                    : "The virtual camera isn’t installed yet — open Settings › Virtual Camera."
             }
         } else {
             renderLoop.setVirtualCamera(nil)

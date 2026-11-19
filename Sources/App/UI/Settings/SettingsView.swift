@@ -255,9 +255,28 @@ struct DeviceSettings: View {
 
 struct VirtualCameraSettings: View {
     @EnvironmentObject var installer: VirtualCameraInstaller
+    @EnvironmentObject var model: AppModel
 
     var body: some View {
         Form {
+            // Installing the camera and sending to it are separate things; show both here so
+            // "installed but nothing in the call" has an obvious answer.
+            Section {
+                Toggle("Send FrameCast to the virtual camera",
+                       isOn: Binding(get: { model.virtualCameraOn }, set: { model.setVirtualCamera($0) }))
+                    .disabled(!installer.isInstalled)
+                StatusRow(level: model.virtualCameraOn ? .good : .neutral,
+                          text: model.virtualCameraOn
+                              ? "Live. Apps that choose “\(VirtualCameraSink.deviceName)” see the canvas."
+                              : (installer.isInstalled
+                                  ? "Off. Apps that choose “\(VirtualCameraSink.deviceName)” see a waiting card."
+                                  : "Install the virtual camera below first."))
+            } header: {
+                Text("In Calls")
+            } footer: {
+                Note("Turns on by itself when FrameCast opens. You can also switch it from the Capture menu or the video button beside the output.")
+            }
+
             Section {
                 StatusRow(level: installer.isInstalled ? .good : (installer.isBundled ? .neutral : .warning),
                           text: installer.status)
