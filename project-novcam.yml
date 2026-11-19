@@ -11,8 +11,8 @@ options:
 
 settings:
   base:
-    APP_BUNDLE_ID: com.example.FrameCast
-    DEVELOPMENT_TEAM: ""
+    APP_BUNDLE_ID: io.devscape.FrameCast
+    DEVELOPMENT_TEAM: 446T6778F7
     CODE_SIGN_STYLE: Manual          # ad-hoc "Sign to Run Locally"; switch to Automatic + your team if you like
     CODE_SIGN_IDENTITY: "-"
     SWIFT_VERSION: "5.9"
