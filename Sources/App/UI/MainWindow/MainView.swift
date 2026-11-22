@@ -103,8 +103,9 @@ struct MainView: View {
     private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .navigation) {
             DevicePicker()
-                .frame(maxWidth: 170)   // a long device name mustn't push the capture controls into the overflow menu
+                .frame(maxWidth: 170)   // long names mustn't push the capture controls into the overflow menu
             FrameMenu()
+                .frame(maxWidth: 190)   // the status strip shows the frame's full name
         }
 
         // Present: drawing tools. They move to the output window's strip when it's detached.
