@@ -110,6 +110,15 @@ final class AppModel: ObservableObject {
 
     // MARK: - Lifecycle
 
+    init() {
+        // Start up as soon as the app is running rather than when the main window appears.
+        // macOS doesn't always reopen that window (after a crash or force quit with the output
+        // separate, it comes back with no windows), and then nothing started at all.
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated { self?.bootstrap() }
+        }
+    }
+
     func bootstrap() {
         guard !bootstrapped else { return }
         bootstrapped = true
