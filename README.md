@@ -2,15 +2,9 @@
 
 FrameCast is a native macOS app (Swift and SwiftUI, macOS 14 or later) that mirrors an iPhone or iPad connected by USB, the same way QuickTime does. It shows the device inside a realistic frame on a branded canvas, and it can record video, take screenshots and act as a virtual webcam. Confidentiality overlays can be burned into any of those outputs.
 
-<!--
-  Promo image or screenshot goes here.
-  Save it as Design/Promo/hero.png (around 2400 px wide, so it stays sharp on Retina
-  displays), then delete this comment's opening and closing lines so the image shows.
-
 <p align="center">
-  <img src="Design/Promo/hero.png" alt="FrameCast showing an iPhone in a device frame on a branded canvas, with the settings inspector open" width="900">
+  <img src="Design/Promo/hero.png" alt="FrameCast's main window: an iPad frame on a branded canvas with a presenter nameplate, and the settings inspector open beside it" width="900">
 </p>
--->
 
 ## Features
 
@@ -126,6 +120,7 @@ iPhone/iPad ─USB─► CoreMediaIO (screen-capture devices on) ─► AVCaptur
 | `Sources/CameraExtension` | The camera system extension (source and sink streams) |
 | `Sources/App/Assets.xcassets` | The app icon |
 | `Design/AppIcon` | Vector and 1024 px masters for the app icon |
+| `Design/Promo` | The screenshot shown at the top of this README |
 | `Generated/` | Info.plists and entitlements written by XcodeGen; not checked in |
 
 `FrameCast.xcodeproj` is generated too. After adding, moving or removing files, run `./bootstrap.sh` (or `xcodegen generate`) to rebuild it.
