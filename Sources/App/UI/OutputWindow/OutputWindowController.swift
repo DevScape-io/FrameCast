@@ -196,7 +196,16 @@ final class OutputWindowController: NSObject, NSWindowDelegate {
             .environmentObject(model.presenter)
         let h = NSHostingController(rootView: AnyView(root))
         h.sizingOptions = [.preferredContentSize]
-        p.contentViewController = h
+        // The hosting view sits inside a plain content view rather than being the panel's
+        // content itself. As the content it brings two things that each resize the panel to
+        // fit it, SwiftUI's window sizing and Auto Layout, and when the strip changes size
+        // (a notice appearing under it) they can disagree and resize it back and forth
+        // without end, which overflowed the stack. Here only positionPanel() sizes the panel.
+        let container = NSView(frame: NSRect(origin: .zero, size: p.frame.size))
+        h.view.frame = container.bounds
+        h.view.autoresizingMask = [.width, .height]
+        container.addSubview(h.view)
+        p.contentView = container
         sizeObservation = h.observe(\.preferredContentSize, options: [.new]) { [weak self] _, _ in
             DispatchQueue.main.async { MainActor.assumeIsolated { self?.positionPanel() } }
         }
@@ -306,7 +315,8 @@ final class OutputWindowController: NSObject, NSWindowDelegate {
     /// inside the right edge when there's no room on either side.
     private func positionPanel() {
         guard let window, let panel, let host else { return }
-        let size = host.view.fittingSize
+        var size = host.preferredContentSize
+        if size.width <= 0 || size.height <= 0 { size = host.view.fittingSize }
         guard size.width > 0, size.height > 0 else { return }
         let gap: CGFloat = 10
         if chrome.isCustomizing { makeRoom(for: size, gap: gap) }
