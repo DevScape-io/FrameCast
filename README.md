@@ -2,6 +2,16 @@
 
 FrameCast is a native macOS app (Swift and SwiftUI, macOS 14 or later) that mirrors an iPhone or iPad connected by USB, the same way QuickTime does. It shows the device inside a realistic frame on a branded canvas, and it can record video, take screenshots and act as a virtual webcam. Confidentiality overlays can be burned into any of those outputs.
 
+<!--
+  Promo image or screenshot goes here.
+  Save it as Design/Promo/hero.png (around 2400 px wide, so it stays sharp on Retina
+  displays), then delete this comment's opening and closing lines so the image shows.
+
+<p align="center">
+  <img src="Design/Promo/hero.png" alt="FrameCast showing an iPhone in a device frame on a branded canvas, with the settings inspector open" width="900">
+</p>
+-->
+
 ## Features
 
 | Area | What you get |
@@ -15,7 +25,7 @@ FrameCast is a native macOS app (Swift and SwiftUI, macOS 14 or later) that mirr
 | **Watermark** | Text or image, tiled or single, with adjustable opacity, angle and size. It can cover the whole canvas or just the device screen. |
 | **Header & footer** | A header logo with a title and right-side text, plus a confidentiality footer with a colored badge such as "CONFIDENTIAL". |
 | **Dynamic tokens** | `{user} {fullname} {date} {time} {datetime} {device} {model} {company} {host} {profile}`. These work in the watermark, header, footer and file names, so a leaked capture can be traced back to who made it and when. |
-| **Profiles** | Saved overlay presets for each client or project, which you switch from the toolbar. Three are included: Clean, Confidential and Client Demo. |
+| **Profiles** | Saved overlay presets for each client or project, which you switch at the top of the inspector. Three are included: Clean, Confidential and Client Demo. |
 | **Burn-in toggles** | You choose whether overlays go into recordings, screenshots and the virtual camera, each separately. Overlays always show in the preview. |
 | **Redaction** | Blur, pixelate or solid boxes that stick to the device screen. Drag to add a box and right-click to remove it. |
 | **Clean status bar** | Covers the real status bar with 9:41, full battery and Wi-Fi, and matches the app's color automatically. |
@@ -23,6 +33,7 @@ FrameCast is a native macOS app (Swift and SwiftUI, macOS 14 or later) that mirr
 | **Presenter webcam** | Your Mac's camera on the canvas beside the device, with an optional nameplate. Both are saved with the profile. |
 | **Virtual camera** | A CoreMediaIO camera extension named **FrameCast Camera**, which you can select in Zoom, Teams, Meet or OBS. Once installed, FrameCast sends to it automatically whenever the app is open. |
 | **Separate output window** | Moves the output into its own window to share in a call, as the full canvas or as **Frame Only** (just the device floating on the desktop). The controls float in a strip beside it, out of the shared picture. |
+| **Inspector** | The settings sit in a full-height panel beside the canvas, in five tabs: Canvas, Device, Camera, Branding and Presenter. Hide it for a larger preview. |
 | **Quality of life** | Global hotkeys, a float-on-top window, a canvas background (solid, gradient or image), and canvas sizes such as 1080p, 4K, square, vertical, or fit to the device. |
 
 ## Install
@@ -33,14 +44,14 @@ To build it yourself instead, read on.
 
 ## Build
 
-You need a Mac with **Xcode 15 or later** and macOS 14 or later.
+You need a Mac with **Xcode 26 or later**. The app itself runs on macOS 14 or later.
 
 ```bash
 cd FrameCast
 ./bootstrap.sh            # installs XcodeGen if needed, generates FrameCast.xcodeproj, opens Xcode
 ```
 
-1. In `project.yml`, change `APP_BUNDLE_ID` (`com.example.FrameCast`) to your own ID. Then set `DEVELOPMENT_TEAM` to your Apple Developer Team ID, or pick the team in Xcode under *Signing & Capabilities* for both targets.
+1. In `project.yml`, change `APP_BUNDLE_ID` to your own reverse-DNS ID. Then set `DEVELOPMENT_TEAM` to your Apple Developer Team ID, or pick the team in Xcode under *Signing & Capabilities* for both targets.
 2. Select the **FrameCast** scheme and press **Run**.
 3. Optional but recommended: `brew install libimobiledevice`. This lets FrameCast read the exact model, such as `iPad16,3`, instead of guessing from the resolution.
 
@@ -106,7 +117,7 @@ iPhone/iPad ─USB─► CoreMediaIO (screen-capture devices on) ─► AVCaptur
 | `Sources/App/Output` | Recorder, screenshots, file naming and the trim window |
 | `Sources/App/VirtualCamera` | Extension installer and the CMIO sink client |
 | `Sources/App/Support` | Settings, file locations, the image store, global shortcuts, colors |
-| `Sources/App/UI/MainWindow` | Main window, settings panel and the live preview view |
+| `Sources/App/UI/MainWindow` | Main window, the inspector and the live preview view |
 | `Sources/App/UI/OutputWindow` | The separate output window, its control strip and settings pane |
 | `Sources/App/UI/Settings` | The Settings window and frame library editor |
 | `Sources/App/UI/Onboarding` | The first-run welcome walkthrough |
