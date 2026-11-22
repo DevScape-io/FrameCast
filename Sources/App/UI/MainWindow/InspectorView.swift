@@ -41,7 +41,7 @@ struct InspectorView: View {
             // 20pt matches the grouped form's own side inset, so everything lines up.
             profileBar(p)
                 .padding(.horizontal, 20)
-                .padding(.top, 12)
+                .padding(.top, 4)
             tabBar
                 .padding(.horizontal, 20)
                 .padding(.top, 12)

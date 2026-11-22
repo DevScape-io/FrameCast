@@ -36,6 +36,17 @@ extension View {
         }
     }
 
+    /// Drops the window's name from the toolbar. It stays the window's title everywhere else
+    /// (Window menu, Mission Control).
+    @ViewBuilder
+    func windowTitleHiddenInToolbar() -> some View {
+        if #available(macOS 15.0, *) {
+            self.toolbar(removing: .title)
+        } else {
+            self
+        }
+    }
+
     /// Liquid Glass on macOS 26 and later, falling back to a material on earlier systems.
     @ViewBuilder
     func glassPanel<S: Shape>(in shape: S, interactive: Bool = false) -> some View {

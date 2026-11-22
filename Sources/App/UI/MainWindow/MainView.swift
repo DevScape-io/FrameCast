@@ -22,16 +22,23 @@ struct MainView: View {
                     InspectorView()
                 }
             } else {
-                HStack(spacing: 0) {
-                    VStack(spacing: 0) {
-                        PreviewStage()
-                        StatusStrip()
-                    }
-                    if model.showInspector {
-                        Divider()
-                        InspectorView()
-                            .frame(width: 330)
-                    }
+                // The inspector is a full-height column with its own stretch of toolbar, so
+                // the capture controls stay over the canvas they act on and only the
+                // inspector's toggle sits above the inspector.
+                VStack(spacing: 0) {
+                    PreviewStage()
+                    StatusStrip()
+                }
+                .background(Color.black.opacity(0.22))   // the stage sits darker than the panels
+                .inspector(isPresented: $model.showInspector) {
+                    InspectorView()
+                        .inspectorColumnWidth(330)
+                        .toolbar {
+                            Spacer()
+                            OutputWindowToggle()
+                            Toggle(isOn: $model.showInspector) { Label("Inspector", systemImage: "sidebar.right") }
+                                .help("Show or hide the settings panel (⌥⌘I)")
+                        }
                 }
             }
         }
@@ -45,6 +52,7 @@ struct MainView: View {
             }
         }
         .toolbar { toolbarContent }
+        .windowTitleHiddenInToolbar()   // the room goes to the controls
         .translucentWindow()
         .background(WindowAccessor { window in
             windowBox.window = window
@@ -95,6 +103,7 @@ struct MainView: View {
     private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .navigation) {
             DevicePicker()
+                .frame(maxWidth: 170)   // a long device name mustn't push the capture controls into the overflow menu
             FrameMenu()
         }
 
@@ -132,20 +141,26 @@ struct MainView: View {
             }
         }
 
-        // Window layout.
+        // Window layout sits over the inspector, next to its toggle (declared with the
+        // inspector). With the output detached there's no inspector column, so the way back
+        // goes here.
         ToolbarItemGroup(placement: .primaryAction) {
-            Toggle(isOn: $model.outputDetached) {
-                Label(model.outputDetached ? "Reattach Output" : "Separate Output Window",
-                      systemImage: model.outputDetached ? "pip.enter" : "pip.exit")
-            }
-            .help(model.outputDetached ? "Move the output back into this window (⌥⌘O)"
-                                       : "Show the output in its own window (⌥⌘O)")
-
-            if !model.outputDetached {
-                Toggle(isOn: $model.showInspector) { Label("Inspector", systemImage: "sidebar.right") }
-                    .help("Show or hide the settings panel (⌥⌘I)")
-            }
+            if model.outputDetached { OutputWindowToggle() }
         }
+    }
+}
+
+/// Moves the output into its own window and back.
+struct OutputWindowToggle: View {
+    @EnvironmentObject var model: AppModel
+
+    var body: some View {
+        Toggle(isOn: $model.outputDetached) {
+            Label(model.outputDetached ? "Reattach Output" : "Separate Output Window",
+                  systemImage: model.outputDetached ? "pip.enter" : "pip.exit")
+        }
+        .help(model.outputDetached ? "Move the output back into this window (⌥⌘O)"
+                                   : "Show the output in its own window (⌥⌘O)")
     }
 }
 
